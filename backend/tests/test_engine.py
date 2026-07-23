@@ -2,7 +2,7 @@ import pytest
 
 from app.game.board import Bend, Board
 from app.game.cube import Cube, Orientation
-from app.game.engine import GameEngine, IllegalMove
+from app.game.engine import GameEngine, IllegalMove, LastMove
 
 
 def make_cube(color="white", is_king=False, x=0, y=0, value=1):
@@ -237,3 +237,57 @@ def test_no_moves_allowed_after_the_game_is_won():
     assert engine.winner == "white"
     with pytest.raises(IllegalMove):
         engine.move(4, 5, 4, 6, bend=None)
+
+
+# ── last_move / move_count (drives the client's move animation) ─────────
+
+def test_move_records_last_move_and_increments_move_count():
+    engine = empty_engine()
+    engine.board.place(make_cube(color="white", x=4, y=4, value=1))
+    assert engine.move_count == 0
+    assert engine.last_move is None
+
+    engine.move(4, 4, 4, 5, bend=None)
+
+    assert engine.move_count == 1
+    assert engine.last_move == LastMove(4, 4, 4, 5, Bend.STRAIGHT)
+
+
+def test_reset_clears_last_move_and_move_count():
+    engine = empty_engine()
+    engine.board.place(make_cube(color="white", x=4, y=4, value=1))
+    engine.move(4, 4, 4, 5, bend=None)
+    engine.reset()
+    assert engine.move_count == 0
+    assert engine.last_move is None
+
+
+# ── AI turn ownership (ai_color) ──────────────────────────────────────────
+
+def test_ai_color_blocks_human_select_and_move_on_its_turn():
+    engine = GameEngine()
+    engine.reset(ai_color="white")  # AI plays white, which moves first
+    assert engine.select(4, 0) == []  # a human can't select white's king either
+    with pytest.raises(IllegalMove):
+        engine.move(0, 0, 0, 1, bend=None)
+
+
+def test_maybe_ai_move_does_nothing_when_it_is_not_the_ai_turn():
+    engine = GameEngine()
+    engine.reset(ai_color="black")  # human (white) moves first
+    assert engine.maybe_ai_move() is False
+    assert engine.move_count == 0
+
+
+def test_maybe_ai_move_plays_for_the_ai_and_returns_to_human_turn():
+    engine = GameEngine()
+    engine.reset(ai_color="black")
+    engine.move(4, 0, 4, 1, bend=None)  # human plays white's king
+    assert engine.turn == "black"
+
+    moved = engine.maybe_ai_move()
+
+    assert moved is True
+    assert engine.turn == "white"
+    assert engine.move_count == 2
+    assert engine.last_move is not None

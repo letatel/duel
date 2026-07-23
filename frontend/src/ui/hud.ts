@@ -14,7 +14,9 @@ export class Hud {
   private readonly zoomMax: number;
   private errorTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(root: HTMLElement, onNewGame: () => void, zoom: ZoomConfig) {
+  private lastVsAi = false;
+
+  constructor(root: HTMLElement, onNewGame: (vsAi: boolean) => void, zoom: ZoomConfig) {
     this.zoomMin = zoom.min;
     this.zoomMax = zoom.max;
 
@@ -22,6 +24,7 @@ export class Hud {
       <div id="hud">
         <div id="turn-indicator"></div>
         <button id="new-game-button" type="button">New game</button>
+        <button id="vs-ai-button" type="button">Play vs AI</button>
         <div id="zoom-control">
           <span aria-hidden="true">&minus;</span>
           <input type="range" id="zoom-slider" min="${zoom.min}" max="${zoom.max}" step="0.1" aria-label="Zoom" />
@@ -40,8 +43,13 @@ export class Hud {
     this.errorEl = root.querySelector("#error-toast") as HTMLElement;
     this.zoomSlider = root.querySelector("#zoom-slider") as HTMLInputElement;
 
-    root.querySelector("#new-game-button")!.addEventListener("click", onNewGame);
-    root.querySelector("#winner-new-game")!.addEventListener("click", onNewGame);
+    const start = (vsAi: boolean): void => {
+      this.lastVsAi = vsAi;
+      onNewGame(vsAi);
+    };
+    root.querySelector("#new-game-button")!.addEventListener("click", () => start(false));
+    root.querySelector("#vs-ai-button")!.addEventListener("click", () => start(true));
+    root.querySelector("#winner-new-game")!.addEventListener("click", () => start(this.lastVsAi));
 
     this.setZoomDistance(zoom.initial);
     this.zoomSlider.addEventListener("input", () => {
@@ -49,8 +57,9 @@ export class Hud {
     });
   }
 
-  setTurn(turn: "white" | "black"): void {
-    this.turnEl.textContent = `${turn === "white" ? "White" : "Black"} to move`;
+  setTurn(turn: "white" | "black", vsAi = false): void {
+    const side = turn === "white" ? "White" : "Black";
+    this.turnEl.textContent = vsAi && turn === "black" ? "AI is thinking…" : `${side} to move`;
   }
 
   setWinner(winner: "white" | "black" | null): void {

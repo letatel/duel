@@ -6,7 +6,7 @@ import { MoveHintView } from "./scene/moveHints";
 import { buildCubeMesh, orientationQuaternion, PIECE_HALF_HEIGHT } from "./scene/cube";
 import { loadCubeModels, loadGameBoard } from "./scene/models";
 import { OrbitCameraController, ZOOM_MAX, ZOOM_MIN } from "./scene/camera";
-import { GameSocket, type BendKind, type ServerMessage, type StateMessage } from "./net/socket";
+import { GameSocket, type ServerMessage, type StateMessage } from "./net/socket";
 import { BoardInput, resolveBend } from "./game/input";
 import { RollAnimation } from "./game/animate";
 import { pathSteps } from "./game/path";
@@ -99,8 +99,13 @@ async function start(): Promise<void> {
 
   // ── Networking / game state ──────────────────────────────────────────
   let latestState: StateMessage | null = null;
-  let pendingMove: { fromX: number; fromY: number; toX: number; toY: number; bend: BendKind } | null = null;
+  // Tracks the last move we've already animated, by the server's
+  // move-count -- not our own memory of what we last requested, since an
+  // AI move arrives unprompted and still needs to be animated the same
+  // way a human move would be.
+  let lastAnimatedMoveNumber = 0;
   let awaitingFullRebuild = true;
+  let vsAi = false;
   const activeAnimations: RollAnimation[] = [];
 
   function applyHighlights(state: StateMessage): void {
@@ -120,7 +125,6 @@ async function start(): Promise<void> {
   function handleServerMessage(msg: ServerMessage): void {
     if (msg.type === "error") {
       hud.showError(msg.message);
-      pendingMove = null;
       return;
     }
 
@@ -129,8 +133,9 @@ async function start(): Promise<void> {
     if (awaitingFullRebuild) {
       rebuildAllCubes(state);
       awaitingFullRebuild = false;
-    } else if (pendingMove) {
-      const { fromX, fromY, toX, toY, bend } = pendingMove;
+      lastAnimatedMoveNumber = state.moveNumber;
+    } else if (state.moveNumber > lastAnimatedMoveNumber && state.lastMove) {
+      const { fromX, fromY, toX, toY, bend } = state.lastMove;
       const moving = cubesByPosition.get(posKey(fromX, fromY));
       const captured = cubesByPosition.get(posKey(toX, toY));
 
@@ -144,17 +149,20 @@ async function start(): Promise<void> {
         const steps = pathSteps(toX - fromX, toY - fromY, bend);
         activeAnimations.push(new RollAnimation(moving.object, steps));
       }
-      pendingMove = null;
+      lastAnimatedMoveNumber = state.moveNumber;
     }
 
-    if (!latestState || latestState.turn !== state.turn) {
+    // Against the AI the human always plays white and watches from the
+    // same side throughout -- only hot-seat (two humans sharing the
+    // screen) needs the camera to flip to face whoever's turn it is.
+    if (!vsAi && (!latestState || latestState.turn !== state.turn)) {
       if (state.turn === "white") cameraController.setWhiteTurn();
       else cameraController.setBlackTurn();
     }
 
     latestState = state;
     applyHighlights(state);
-    hud.setTurn(state.turn);
+    hud.setTurn(state.turn, vsAi);
     hud.setWinner(state.winner);
   }
 
@@ -167,18 +175,14 @@ async function start(): Promise<void> {
     () => board.raycastTargets,
     (x, y, hitPoint) => {
       if (!latestState || latestState.winner || activeAnimations.length > 0) return;
+      if (vsAi && latestState.turn === "black") return; // AI's turn
 
       const legalMove = latestState.legalMoves.find((m) => m.x === x && m.y === y);
       if (latestState.selected && legalMove) {
         const [fromX, fromY] = latestState.selected;
         const bendChoice = resolveBend(fromX, fromY, x, y, legalMove, hitPoint);
-        const bend: BendKind = legalMove.bends.includes("straight")
-          ? "straight"
-          : bendChoice === "x"
-            ? "x_then_y"
-            : "y_then_x";
-        pendingMove = { fromX, fromY, toX: x, toY: y, bend };
-        socket.move(fromX, fromY, x, y, bend === "straight" ? undefined : bendChoice);
+        const bend = legalMove.bends.includes("straight") ? undefined : bendChoice;
+        socket.move(fromX, fromY, x, y, bend);
       } else {
         socket.select(x, y);
       }
@@ -187,9 +191,11 @@ async function start(): Promise<void> {
 
   const hud = new Hud(
     hudRoot,
-    () => {
+    (newVsAi) => {
+      vsAi = newVsAi;
       awaitingFullRebuild = true;
-      socket.newGame();
+      cameraController.setWhiteTurn(); // a fresh game always starts on white
+      socket.newGame(vsAi);
     },
     {
       min: ZOOM_MIN,

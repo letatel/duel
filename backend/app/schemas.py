@@ -31,6 +31,14 @@ class LegalMoveView(BaseModel):
     values: dict[Literal["straight", "x_then_y", "y_then_x"], int]
 
 
+class LastMoveView(BaseModel):
+    fromX: int
+    fromY: int
+    toX: int
+    toY: int
+    bend: Literal["straight", "x_then_y", "y_then_x"]
+
+
 class StateMessage(BaseModel):
     type: Literal["state"] = "state"
     board: list[CubeView]
@@ -38,6 +46,12 @@ class StateMessage(BaseModel):
     winner: Optional[Literal["white", "black"]] = None
     selected: Optional[tuple[int, int]] = None
     legalMoves: list[LegalMoveView] = []
+    # Incremented on every applied move (human or AI). The client uses
+    # this to notice "a move just happened, animate it" independent of
+    # whether it was the one that requested it -- an AI move arrives
+    # unprompted, so it can't rely on remembering its own last request.
+    moveNumber: int = 0
+    lastMove: Optional[LastMoveView] = None
 
 
 class ErrorMessage(BaseModel):

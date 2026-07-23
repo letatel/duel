@@ -3,9 +3,10 @@
 A dice-chess web port of the original Unity game: three.js frontend,
 Python (FastAPI) backend as the authoritative rules engine over WebSocket.
 
-Current scope: local hot-seat only (see the project plan for the
-multiplayer/AI phases this is designed to grow into without an engine
-rewrite).
+Local hot-seat, or against a simple built-in AI (human plays white; see
+"AI opponent" below). Multiplayer over the network is not built yet — see
+the project plan for how it layers on top of this without an engine
+rewrite.
 
 ## Run it
 
@@ -101,6 +102,26 @@ diagonally-split marker, one number per order (matching whichever bend
 `game/input.ts`'s `resolveBend` will actually send). The king shows no
 number — its value is always 1, so there's nothing to preview.
 
+## AI opponent
+
+`backend/app/game/ai.py`'s `choose_move` is a deliberately simple one-ply
+heuristic (prefer capturing, prefer capturing the king outright, prefer
+advancing pawns and the center columns, avoid moves that leave the mover
+immediately recapturable) — no search tree, no opening book. Clicking
+"Play vs AI" in the HUD sends `new_game` with `vsAi: true`; the engine then
+always gives the AI black (`GameEngine.ai_color`), and after every human
+move, `ws.py` calls `GameEngine.maybe_ai_move()` and — if it moved — sends
+a second `state` message a beat later (`AI_REPLY_DELAY_SECONDS`) so the
+human's own move finishes animating first.
+
+This is also what `StateMessage.moveNumber`/`lastMove` are for: the client
+used to animate a move by remembering what *it* had just requested, which
+breaks for a move the server made on its own initiative. Now every `state`
+message carries the move that was just applied (if any) and an
+incrementing counter, so `main.ts` animates by noticing the counter went
+up, regardless of who moved — the same mechanism a future networked
+opponent's moves would use too.
+
 ## Deploy
 
 Served in production at `https://<host>:8443/duel/` behind a bundled nginx +
@@ -124,6 +145,6 @@ twice daily (nginx doesn't need a restart for a renewed cert — `-s reload` re-
 
 ## Known gaps / follow-ups
 
-- Multiplayer, AI opponent, menus/settings/localization/chat are not
-  built yet — see the project plan for how they layer on top of this
-  without changing `backend/app/game/`.
+- Multiplayer, menus/settings/localization/chat are not built yet — see
+  the project plan for how they layer on top of this without changing
+  `backend/app/game/`.

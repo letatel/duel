@@ -22,6 +22,14 @@ export interface LegalMoveView {
   values: Partial<Record<BendKind, number>>;
 }
 
+export interface LastMoveView {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  bend: BendKind;
+}
+
 export interface StateMessage {
   type: "state";
   board: CubeView[];
@@ -29,6 +37,11 @@ export interface StateMessage {
   winner: "white" | "black" | null;
   selected: [number, number] | null;
   legalMoves: LegalMoveView[];
+  // Incremented on every applied move (human or AI) -- compare against the
+  // previous state's value to notice a move happened, regardless of who
+  // made it, and animate it via `lastMove`.
+  moveNumber: number;
+  lastMove: LastMoveView | null;
 }
 
 export interface ErrorMessage {
@@ -39,7 +52,7 @@ export interface ErrorMessage {
 export type ServerMessage = StateMessage | ErrorMessage;
 
 type ClientMessage =
-  | { type: "new_game" }
+  | { type: "new_game"; vsAi?: boolean }
   | { type: "select"; x: number; y: number }
   | { type: "move"; fromX: number; fromY: number; toX: number; toY: number; bend?: "x" | "y" };
 
@@ -70,8 +83,8 @@ export class GameSocket {
     });
   }
 
-  newGame(): void {
-    this.send({ type: "new_game" });
+  newGame(vsAi = false): void {
+    this.send({ type: "new_game", vsAi });
   }
 
   select(x: number, y: number): void {

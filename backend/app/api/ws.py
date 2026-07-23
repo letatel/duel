@@ -5,14 +5,20 @@ same engine without changing engine.py.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..game.engine import GameEngine, IllegalMove
-from ..schemas import CubeView, ErrorMessage, LegalMoveView, StateMessage
+from ..schemas import CubeView, ErrorMessage, LastMoveView, LegalMoveView, StateMessage
 
 router = APIRouter()
+
+# Pause between sending the human's move and the AI's reply, purely so the
+# human's own move finishes animating before the AI's move starts (mirrors
+# the original's AIManager.aiDelay).
+AI_REPLY_DELAY_SECONDS = 0.6
 
 
 def _state_message(engine: GameEngine) -> StateMessage:
@@ -26,12 +32,18 @@ def _state_message(engine: GameEngine) -> StateMessage:
         )
         for m in engine.legal_moves_for_selected()
     ]
+    last_move = None
+    if engine.last_move is not None:
+        lm = engine.last_move
+        last_move = LastMoveView(fromX=lm.from_x, fromY=lm.from_y, toX=lm.to_x, toY=lm.to_y, bend=lm.bend.value)
     return StateMessage(
         board=board,
         turn=engine.turn,
         winner=engine.winner,
         selected=engine.selected,
         legalMoves=legal_moves,
+        moveNumber=engine.move_count,
+        lastMove=last_move,
     )
 
 
@@ -49,7 +61,8 @@ async def game_socket(websocket: WebSocket) -> None:
                 msg_type = data.get("type")
 
                 if msg_type == "new_game":
-                    engine.reset()
+                    ai_color = "black" if data.get("vsAi") else None
+                    engine.reset(ai_color=ai_color)
                 elif msg_type == "select":
                     engine.select(int(data["x"]), int(data["y"]))
                 elif msg_type == "move":
@@ -70,5 +83,9 @@ async def game_socket(websocket: WebSocket) -> None:
                 continue
 
             await websocket.send_text(_state_message(engine).model_dump_json())
+
+            if engine.maybe_ai_move():
+                await asyncio.sleep(AI_REPLY_DELAY_SECONDS)
+                await websocket.send_text(_state_message(engine).model_dump_json())
     except WebSocketDisconnect:
         pass
