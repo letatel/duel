@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { PIP_LAYOUTS } from "./cube";
+import { PIP_LAYOUTS, PIECE_SIZE } from "./cube";
 import { tileCenter, bendSideAt } from "./board";
 import type { BendKind, LegalMoveView } from "../net/socket";
 
@@ -18,6 +18,12 @@ import type { BendKind, LegalMoveView } from "../net/socket";
 // indicator).
 const MARKER_SIZE = 0.7;
 const MARKER_Y = 0.03;
+// A capture destination is already occupied by the piece it would take,
+// which sits with its top face at PIECE_SIZE above the board -- floating
+// the marker at the usual near-floor height would leave it hidden inside
+// or under that piece, so it's raised to hover just above the captured
+// piece's top face instead.
+const MARKER_Y_ABOVE_PIECE = PIECE_SIZE + 0.08;
 const BG_COLOR = "#f2ede2";
 const PIP_COLOR = "#2b2b2b";
 const CANVAS_SIZE = 256;
@@ -158,7 +164,12 @@ export class MoveHintView {
   readonly group = new THREE.Group();
   private active: THREE.Mesh[] = [];
 
-  update(moves: LegalMoveView[], selectedFrom: [number, number] | null, selectedIsKing: boolean): void {
+  update(
+    moves: LegalMoveView[],
+    selectedFrom: [number, number] | null,
+    selectedIsKing: boolean,
+    isOccupied: (x: number, y: number) => boolean,
+  ): void {
     this.clear();
     if (selectedIsKing || !selectedFrom) return;
     const [fromX, fromY] = selectedFrom;
@@ -172,7 +183,8 @@ export class MoveHintView {
       const mesh = new THREE.Mesh(geometry, material);
       mesh.rotation.x = -Math.PI / 2;
       const center = tileCenter(move.x, move.y);
-      mesh.position.set(center.x, MARKER_Y, center.z);
+      const y = isOccupied(move.x, move.y) ? MARKER_Y_ABOVE_PIECE : MARKER_Y;
+      mesh.position.set(center.x, y, center.z);
       this.group.add(mesh);
       this.active.push(mesh);
     }

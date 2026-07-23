@@ -119,7 +119,7 @@ async function start(): Promise<void> {
     for (const move of state.legalMoves) {
       board.highlightMove(move.x, move.y);
     }
-    moveHints.update(state.legalMoves, state.selected, selectedIsKing);
+    moveHints.update(state.legalMoves, state.selected, selectedIsKing, (x, y) => cubesByPosition.has(posKey(x, y)));
   }
 
   function handleServerMessage(msg: ServerMessage): void {
