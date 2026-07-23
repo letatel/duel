@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { tileCenter } from "../scene/board";
+import { bendSideAt } from "../scene/board";
 import type { LegalMoveView } from "../net/socket";
 
 /** Raycasts pointer clicks against the board's tile meshes and reports
@@ -44,10 +44,19 @@ export class BoardInput {
 
 /** Picks which bend order to send with a move. If the destination only
  * has one valid order, or none (a straight move), there's nothing to
- * choose. If both orders are open, the player's click point decides --
- * whichever L-path corner it landed closer to -- mirroring
- * BoardManager.Direction's point-in-triangle test, simplified to a
- * nearest-corner check since the server re-validates the choice anyway. */
+ * choose. If both orders are open, the player's click point within the
+ * destination tile decides which -- whichever edge of the tile it's
+ * closer to, where "closer" is judged relative to the tile's own center,
+ * not raw distance to the (possibly many tiles away) corner square each
+ * bend order's path actually turns at. That distinction matters: for any
+ * move that isn't an exact 45-degree diagonal, one of those corner
+ * squares is farther from the destination than the other by construction
+ * (one is `dx` tiles out, the other `dy` tiles out), so comparing raw
+ * distance to them picks the same bend almost everywhere on the tile
+ * regardless of where you actually click -- the other option the preview
+ * marker shows becomes unreachable in practice. Comparing local,
+ * magnitude-independent position instead keeps both halves of the tile
+ * meaningful. */
 export function resolveBend(
   fromX: number,
   fromY: number,
@@ -63,9 +72,5 @@ export function resolveBend(
   if (hasXThenY && !hasYThenX) return "x";
   if (hasYThenX && !hasXThenY) return "y";
 
-  const xThenYCorner = tileCenter(toX, fromY);
-  const yThenXCorner = tileCenter(fromX, toY);
-  const distToXThenY = hitPoint.distanceTo(xThenYCorner);
-  const distToYThenX = hitPoint.distanceTo(yThenXCorner);
-  return distToXThenY <= distToYThenX ? "x" : "y";
+  return bendSideAt(fromX, fromY, toX, toY, hitPoint.x, hitPoint.z);
 }

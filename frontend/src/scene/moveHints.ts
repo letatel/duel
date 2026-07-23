@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { PIP_LAYOUTS } from "./cube";
-import { tileCenter } from "./board";
+import { tileCenter, bendSideAt } from "./board";
 import type { BendKind, LegalMoveView } from "../net/socket";
 
 // Port of the preview markers Assets/Scripts/BoardTurn.cs spawns over each
@@ -9,10 +9,13 @@ import type { BendKind, LegalMoveView } from "../net/socket";
 // reachable one way (or both bend orders happen to leave the same face
 // up), that's a single number; when the two bend orders leave *different*
 // faces up, the marker is split diagonally in two, one number per order,
-// matching whichever bend the player's hover/click resolves to (see
-// game/input.ts's resolveBend). The king shows no number at all -- its
-// value never changes, so there's nothing useful to preview (the
-// original's marker index 0 is a plain "you can move here" indicator).
+// positioned to match whichever half of the tile game/input.ts's
+// resolveBend would actually resolve to that bend (see bendSideAt) --
+// otherwise the marker can promise a value that clicking anywhere
+// reasonable on the tile can't actually produce. The king shows no
+// number at all -- its value never changes, so there's nothing useful to
+// preview (the original's marker index 0 is a plain "you can move here"
+// indicator).
 const MARKER_SIZE = 0.7;
 const MARKER_Y = 0.03;
 const BG_COLOR = "#f2ede2";
@@ -37,7 +40,30 @@ function drawPipsCentered(
   }
 }
 
-function buildMarkerTexture(values: Partial<Record<BendKind, number>>): THREE.CanvasTexture {
+function clipTriangle(ctx: CanvasRenderingContext2D, points: Array<[number, number]>): void {
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (const [x, y] of points.slice(1)) ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.clip();
+}
+
+function bendKind(side: "x" | "y"): BendKind {
+  return side === "x" ? "x_then_y" : "y_then_x";
+}
+
+// World-space canvas corners, in the same u/w convention as bendSideAt
+// (canvas x -> world +x; canvas y, top-to-bottom -> world -z to +z, since
+// scene/board.ts's tiles/markers lie flat facing +Y with rotation.x =
+// -PI/2, which sends local +Y/canvas-up to world -Z).
+function cornerBend(fromX: number, fromY: number, toX: number, toY: number, canvasX: number, canvasY: number): "x" | "y" {
+  const center = tileCenter(toX, toY);
+  const u = canvasX / CANVAS_SIZE - 0.5;
+  const w = canvasY / CANVAS_SIZE - 0.5;
+  return bendSideAt(fromX, fromY, toX, toY, center.x + u, center.z + w);
+}
+
+function buildMarkerTexture(fromX: number, fromY: number, move: LegalMoveView): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = CANVAS_SIZE;
   const ctx = canvas.getContext("2d");
@@ -49,33 +75,43 @@ function buildMarkerTexture(values: Partial<Record<BendKind, number>>): THREE.Ca
   ctx.lineWidth = 3;
   ctx.strokeRect(2, 2, CANVAS_SIZE - 4, CANVAS_SIZE - 4);
 
-  const unique = [...new Set(Object.values(values))];
+  const unique = [...new Set(Object.values(move.values))];
   const half = CANVAS_SIZE / 2;
 
   if (unique.length <= 1) {
     drawPipsCentered(ctx, unique[0], half, half, CANVAS_SIZE * 0.85);
-  } else {
-    // Diagonal split (top-right / bottom-left), one value's pips
-    // recentered into each half -- not just a clipped full-size layout,
-    // so each half still reads as a complete, legible face.
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  // The dividing diagonal always passes exactly through the two corners
+  // where the two bend orders are equally "near" (see bendSideAt); the
+  // other two corners are strictly on one side each and get one value.
+  const tl = cornerBend(fromX, fromY, move.x, move.y, 0, 0);
+  const tr = cornerBend(fromX, fromY, move.x, move.y, CANVAS_SIZE, 0);
+  const bl = cornerBend(fromX, fromY, move.x, move.y, 0, CANVAS_SIZE);
+  const br = cornerBend(fromX, fromY, move.x, move.y, CANVAS_SIZE, CANVAS_SIZE);
+
+  if (tl === br) {
+    // "\" divider (top-left to bottom-right); top-right and bottom-left
+    // are the two distinct halves.
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(CANVAS_SIZE, 0);
-    ctx.lineTo(CANVAS_SIZE, CANVAS_SIZE);
-    ctx.closePath();
-    ctx.clip();
-    drawPipsCentered(ctx, values.x_then_y!, half * 1.5, half * 0.5, CANVAS_SIZE * 0.42);
+    clipTriangle(ctx, [
+      [0, 0],
+      [CANVAS_SIZE, 0],
+      [CANVAS_SIZE, CANVAS_SIZE],
+    ]);
+    drawPipsCentered(ctx, move.values[bendKind(tr)]!, half * 1.5, half * 0.5, CANVAS_SIZE * 0.42);
     ctx.restore();
 
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, CANVAS_SIZE);
-    ctx.lineTo(CANVAS_SIZE, CANVAS_SIZE);
-    ctx.closePath();
-    ctx.clip();
-    drawPipsCentered(ctx, values.y_then_x!, half * 0.5, half * 1.5, CANVAS_SIZE * 0.42);
+    clipTriangle(ctx, [
+      [0, 0],
+      [0, CANVAS_SIZE],
+      [CANVAS_SIZE, CANVAS_SIZE],
+    ]);
+    drawPipsCentered(ctx, move.values[bendKind(bl)]!, half * 0.5, half * 1.5, CANVAS_SIZE * 0.42);
     ctx.restore();
 
     ctx.strokeStyle = PIP_COLOR;
@@ -83,6 +119,33 @@ function buildMarkerTexture(values: Partial<Record<BendKind, number>>): THREE.Ca
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(CANVAS_SIZE, CANVAS_SIZE);
+    ctx.stroke();
+  } else {
+    // "/" divider (top-right to bottom-left); top-left and bottom-right
+    // are the two distinct halves.
+    ctx.save();
+    clipTriangle(ctx, [
+      [0, 0],
+      [CANVAS_SIZE, 0],
+      [0, CANVAS_SIZE],
+    ]);
+    drawPipsCentered(ctx, move.values[bendKind(tl)]!, half * 0.5, half * 0.5, CANVAS_SIZE * 0.42);
+    ctx.restore();
+
+    ctx.save();
+    clipTriangle(ctx, [
+      [CANVAS_SIZE, 0],
+      [CANVAS_SIZE, CANVAS_SIZE],
+      [0, CANVAS_SIZE],
+    ]);
+    drawPipsCentered(ctx, move.values[bendKind(br)]!, half * 1.5, half * 1.5, CANVAS_SIZE * 0.42);
+    ctx.restore();
+
+    ctx.strokeStyle = PIP_COLOR;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(CANVAS_SIZE, 0);
+    ctx.lineTo(0, CANVAS_SIZE);
     ctx.stroke();
   }
 
@@ -95,14 +158,15 @@ export class MoveHintView {
   readonly group = new THREE.Group();
   private active: THREE.Mesh[] = [];
 
-  update(moves: LegalMoveView[], selectedIsKing: boolean): void {
+  update(moves: LegalMoveView[], selectedFrom: [number, number] | null, selectedIsKing: boolean): void {
     this.clear();
-    if (selectedIsKing) return;
+    if (selectedIsKing || !selectedFrom) return;
+    const [fromX, fromY] = selectedFrom;
 
     for (const move of moves) {
       const geometry = new THREE.PlaneGeometry(MARKER_SIZE, MARKER_SIZE);
       const material = new THREE.MeshBasicMaterial({
-        map: buildMarkerTexture(move.values),
+        map: buildMarkerTexture(fromX, fromY, move),
         transparent: true,
       });
       const mesh = new THREE.Mesh(geometry, material);

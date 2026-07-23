@@ -119,7 +119,7 @@ async function start(): Promise<void> {
     for (const move of state.legalMoves) {
       board.highlightMove(move.x, move.y);
     }
-    moveHints.update(state.legalMoves, selectedIsKing);
+    moveHints.update(state.legalMoves, state.selected, selectedIsKing);
   }
 
   function handleServerMessage(msg: ServerMessage): void {

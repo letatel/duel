@@ -27,6 +27,30 @@ export function tileCenter(x: number, y: number): THREE.Vector3 {
   return new THREE.Vector3(x + 0.5, 0, y + 0.5);
 }
 
+/** Which bend order's real corner square a world point within the
+ * destination tile is on the "near" side for -- shared by
+ * game/input.ts's resolveBend (deciding a move from a click) and
+ * scene/moveHints.ts (drawing the split preview marker so its two
+ * halves match what clicking each one actually produces). `px`/`pz` are
+ * world x/z coordinates (z is board y).
+ *
+ * The x_then_y path's corner square is `dy` tiles from the destination
+ * (purely along z); the y_then_x path's is `dx` tiles away (purely along
+ * x). Comparing raw distance to those would let whichever is numerically
+ * closer dominate almost the entire tile for any non-45-degree move --
+ * instead this compares local position within the tile against just the
+ * *sign* of dx/dy, which always yields a clean corner-to-corner diagonal
+ * split regardless of how long the move is. */
+export function bendSideAt(fromX: number, fromY: number, toX: number, toY: number, px: number, pz: number): "x" | "y" {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const center = tileCenter(toX, toY);
+  const localU = px - center.x;
+  const localW = pz - center.z;
+  const score = localU * Math.sign(dx) - localW * Math.sign(dy);
+  return score >= 0 ? "x" : "y";
+}
+
 export interface BoardTile {
   x: number;
   y: number;
