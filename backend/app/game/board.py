@@ -154,6 +154,23 @@ class Board:
 
         return moves
 
+    def attacks(self, cube: Cube, tx: int, ty: int) -> bool:
+        """Whether `cube` could move to exactly (tx, ty) this turn -- a much
+        cheaper single-square check than generating the full legal_moves
+        list, since it skips every other candidate destination and the
+        per-bend resulting-value computation (irrelevant for a plain
+        yes/no). Used by the AI's king-safety heuristic, which only ever
+        needs to know about one specific square, not the full move list."""
+        dx, dy = tx - cube.x, ty - cube.y
+        if abs(dx) + abs(dy) != cube.value:
+            return False
+        if not self.in_bounds(tx, ty):
+            return False
+        target = self.at(tx, ty)
+        if target is not None and target.color == cube.color:
+            return False
+        return bool(self._clear_bends(cube.x, cube.y, dx, dy))
+
     @staticmethod
     def resulting_cube(cube: Cube, dx: int, dy: int, bend: Bend) -> Cube:
         """The cube as it would be after following `bend`'s roll sequence

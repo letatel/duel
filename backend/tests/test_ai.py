@@ -54,6 +54,28 @@ def test_choose_move_avoids_a_recapture_when_a_safe_alternative_exists():
     assert move != (4, 4, 4, 5, Bend.STRAIGHT)
 
 
+def test_choose_move_avoids_exposing_its_own_king_to_a_discovered_attack():
+    # _hangs_the_mover only ever checks whether the piece that just moved
+    # is recapturable on its own new square -- it has no way to notice a
+    # move exposing some *other* piece, most importantly the king. Here,
+    # the white pawn at (5,4) currently blocks a black pawn three squares
+    # east of the white king along row y=4. It can either shift further
+    # along that same row (still blocking, but a lower advance score for
+    # white, whose advance is measured purely by y) or step off the row
+    # entirely to (5,5) -- a *better* advance score, but one that opens
+    # the row and leaves the king capturable next turn. Without the check
+    # penalty, the plain advance bonus would make (5,5) look like the
+    # better move; with it, the still-blocking (6,4) should win instead.
+    board = Board()
+    board.place(Cube(color="white", is_king=True, x=4, y=4, orientation=Orientation.standard()))
+    board.place(make_cube(color="white", x=5, y=4, value=1))
+    board.place(make_cube(color="black", x=7, y=4, value=3))  # attacks (4,4) once the row opens
+
+    move = ai.choose_move(board, "white")
+
+    assert move != (5, 4, 5, 5, Bend.STRAIGHT)
+
+
 # ── "hard" difficulty: minimax with alpha-beta ──────────────────────────
 
 def test_choose_move_dispatches_to_hard_by_difficulty_argument():
@@ -127,6 +149,18 @@ def test_choose_move_hard_avoids_a_trade_down_a_forced_recapture_line():
     move = ai.choose_move_hard(board, "white")
 
     assert move != (4, 4, 4, 5, Bend.STRAIGHT)
+
+
+def test_choose_move_hard_moves_a_threatened_king_to_safety():
+    board = Board()
+    board.place(Cube(color="white", is_king=True, x=4, y=4, orientation=Orientation.standard()))
+    board.place(Cube(color="black", is_king=True, x=0, y=7, orientation=Orientation.standard()))
+    board.place(make_cube(color="black", x=4, y=6, value=2))  # attacks (4,4) right now
+    board.place(make_cube(color="white", x=8, y=0, value=1))  # a quiet, unrelated alternative
+
+    move = ai.choose_move_hard(board, "white")
+
+    assert move[:2] == (4, 4)
 
 
 def test_choose_move_hard_finds_a_mate_in_one():

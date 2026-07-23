@@ -22,6 +22,7 @@ _HOME_INVASION_BONUS = 1000.0
 _ADVANCE_WEIGHT = 0.3
 _CENTER_WEIGHT = 0.1
 _HANGING_PENALTY = 50.0
+_CHECK_PENALTY = 40.0
 
 _KING_HOME_X = 4
 _ENEMY_HOME_ROW = {"white": 7, "black": 0}
@@ -67,6 +68,18 @@ def _simulate(board: Board, cube: Cube, to_x: int, to_y: int, bend: Bend) -> Boa
     return scratch
 
 
+def _is_in_check(board: Board, color: str) -> bool:
+    """Whether `color`'s king could be captured by the opponent on their
+    very next move, in the given position ("check", though the rules this
+    game actually enforces never stop a player from making such a move --
+    this is purely a heuristic signal for the AI, not a legality rule)."""
+    king = next((c for c in board.cubes.values() if c.is_king and c.color == color), None)
+    if king is None:
+        return False  # already captured -- _winner covers that case
+    enemy = _other(color)
+    return any(cube.color == enemy and board.attacks(cube, king.x, king.y) for cube in board.cubes.values())
+
+
 # ── Easy: greedy one-ply choice ─────────────────────────────────────────
 
 def choose_move_easy(board: Board, color: str) -> Optional[Move]:
@@ -106,6 +119,15 @@ def _score_move(board: Board, color: str, cube: Cube, to_x: int, to_y: int, bend
 
     if _hangs_the_mover(board, color, cube, to_x, to_y, bend):
         score -= _HANGING_PENALTY
+
+    # _hangs_the_mover only catches the piece that just moved being
+    # recaptured on its own new square -- it wouldn't notice this move
+    # leaving some *other* piece, especially the king, newly exposed (e.g.
+    # moving away from a square that was blocking a line to it). Checking
+    # king safety directly covers that broader "did I just hang my own
+    # king" case regardless of which piece caused it.
+    if _is_in_check(_simulate(board, cube, to_x, to_y, bend), color):
+        score -= _CHECK_PENALTY
 
     return score
 
@@ -168,7 +190,19 @@ def _evaluate(board: Board, root_color: str) -> float:
     """Static heuristic value of `board` from `root_color`'s perspective:
     material (pawn presence, king presence) plus the same
     advance/center-control shaping the easy AI uses per move, summed over
-    every cube and signed by whether it's root_color's or the enemy's."""
+    every cube and signed by whether it's root_color's or the enemy's.
+
+    Also weighs whether either king is currently in check. `_winner`
+    already catches an *actual* king capture happening within the
+    searched plies, but that leaves every leaf beyond the search horizon
+    blind to a king merely being left in danger -- without this term, a
+    3-ply search has no reason to prefer a line that keeps its king safe
+    over one that doesn't, as long as the capture itself would only
+    happen on the (unsearched) 4th ply. Scoring check directly at every
+    leaf pulls that consideration back inside the horizon the search can
+    actually see, well below _WIN_SCORE so it never overrides a genuine
+    forced capture either way.
+    """
     score = 0.0
     for cube in board.cubes.values():
         sign = 1.0 if cube.color == root_color else -1.0
@@ -179,6 +213,12 @@ def _evaluate(board: Board, root_color: str) -> float:
         advance = cube.y if cube.color == "white" else (7 - cube.y)
         score += sign * advance * _ADVANCE_WEIGHT
         score += sign * (4 - abs(cube.x - 4)) * _CENTER_WEIGHT
+
+    if _is_in_check(board, root_color):
+        score -= _CHECK_PENALTY
+    if _is_in_check(board, _other(root_color)):
+        score += _CHECK_PENALTY
+
     return score
 
 

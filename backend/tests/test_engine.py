@@ -150,6 +150,49 @@ def test_out_of_bounds_destinations_are_excluded():
     assert (-2, 0) not in dests
 
 
+# ── Board.attacks (single-square reachability, used by the AI's king-
+# safety heuristic instead of the pricier full legal_moves) ──────────────
+
+def test_attacks_agrees_with_legal_moves_for_every_reachable_square():
+    board = Board()
+    cube = make_cube(x=2, y=2, value=3)
+    board.place(cube)
+    reachable = {(m.x, m.y) for m in board.legal_moves(cube)}
+    for x in range(9):
+        for y in range(8):
+            assert board.attacks(cube, x, y) == ((x, y) in reachable), f"({x},{y})"
+
+
+def test_attacks_is_false_for_wrong_distance():
+    board = Board()
+    cube = make_cube(x=2, y=2, value=3)
+    board.place(cube)
+    assert board.attacks(cube, 3, 2) is False  # one square, not three
+
+
+def test_attacks_is_false_when_the_path_is_blocked():
+    board = Board()
+    cube = make_cube(x=0, y=0, value=2)
+    board.place(cube)
+    board.place(make_cube(color="white", x=1, y=0, value=1))  # blocks the only path there
+    assert board.attacks(cube, 2, 0) is False
+
+
+def test_attacks_is_false_onto_a_square_held_by_the_same_color():
+    board = Board()
+    cube = make_cube(color="white", x=0, y=0, value=2)
+    board.place(cube)
+    board.place(make_cube(color="white", x=2, y=0, value=1))
+    assert board.attacks(cube, 2, 0) is False
+
+
+def test_attacks_is_false_out_of_bounds():
+    board = Board()
+    cube = make_cube(x=0, y=0, value=2)
+    board.place(cube)
+    assert board.attacks(cube, -2, 0) is False
+
+
 # ── Move-preview values (for the client's per-tile die-value hint) ───────
 
 def test_straight_move_reports_the_resulting_value():
