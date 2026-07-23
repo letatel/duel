@@ -1,3 +1,5 @@
+export type AiDifficulty = "easy" | "hard";
+
 export interface ZoomConfig {
   min: number;
   max: number;
@@ -9,14 +11,16 @@ export class Hud {
   private readonly turnEl: HTMLElement;
   private readonly winnerBanner: HTMLElement;
   private readonly errorEl: HTMLElement;
+  private readonly difficultyDialog: HTMLElement;
   private readonly zoomSlider: HTMLInputElement;
   private readonly zoomMin: number;
   private readonly zoomMax: number;
   private errorTimeout: ReturnType<typeof setTimeout> | null = null;
 
   private lastVsAi = false;
+  private lastDifficulty: AiDifficulty = "easy";
 
-  constructor(root: HTMLElement, onNewGame: (vsAi: boolean) => void, zoom: ZoomConfig) {
+  constructor(root: HTMLElement, onNewGame: (vsAi: boolean, difficulty: AiDifficulty) => void, zoom: ZoomConfig) {
     this.zoomMin = zoom.min;
     this.zoomMax = zoom.max;
 
@@ -31,6 +35,16 @@ export class Hud {
           <span aria-hidden="true">+</span>
         </div>
       </div>
+      <div id="difficulty-dialog" class="hidden">
+        <div id="difficulty-dialog-box">
+          <div id="difficulty-dialog-title">Choose AI difficulty</div>
+          <div id="difficulty-dialog-buttons">
+            <button id="difficulty-easy-button" type="button">Easy</button>
+            <button id="difficulty-hard-button" type="button">Hard</button>
+          </div>
+          <button id="difficulty-cancel-button" type="button">Cancel</button>
+        </div>
+      </div>
       <div id="winner-banner" class="hidden">
         <span id="winner-text"></span>
         <button id="winner-new-game" type="button">Play again</button>
@@ -41,20 +55,39 @@ export class Hud {
     this.turnEl = root.querySelector("#turn-indicator") as HTMLElement;
     this.winnerBanner = root.querySelector("#winner-banner") as HTMLElement;
     this.errorEl = root.querySelector("#error-toast") as HTMLElement;
+    this.difficultyDialog = root.querySelector("#difficulty-dialog") as HTMLElement;
     this.zoomSlider = root.querySelector("#zoom-slider") as HTMLInputElement;
 
-    const start = (vsAi: boolean): void => {
+    const start = (vsAi: boolean, difficulty: AiDifficulty): void => {
       this.lastVsAi = vsAi;
-      onNewGame(vsAi);
+      this.lastDifficulty = difficulty;
+      onNewGame(vsAi, difficulty);
     };
-    root.querySelector("#new-game-button")!.addEventListener("click", () => start(false));
-    root.querySelector("#vs-ai-button")!.addEventListener("click", () => start(true));
-    root.querySelector("#winner-new-game")!.addEventListener("click", () => start(this.lastVsAi));
+    root.querySelector("#new-game-button")!.addEventListener("click", () => start(false, this.lastDifficulty));
+    root.querySelector("#vs-ai-button")!.addEventListener("click", () => this.showDifficultyDialog());
+    root.querySelector("#difficulty-easy-button")!.addEventListener("click", () => {
+      this.hideDifficultyDialog();
+      start(true, "easy");
+    });
+    root.querySelector("#difficulty-hard-button")!.addEventListener("click", () => {
+      this.hideDifficultyDialog();
+      start(true, "hard");
+    });
+    root.querySelector("#difficulty-cancel-button")!.addEventListener("click", () => this.hideDifficultyDialog());
+    root.querySelector("#winner-new-game")!.addEventListener("click", () => start(this.lastVsAi, this.lastDifficulty));
 
     this.setZoomDistance(zoom.initial);
     this.zoomSlider.addEventListener("input", () => {
       zoom.onChange(this.sliderToDistance(Number(this.zoomSlider.value)));
     });
+  }
+
+  private showDifficultyDialog(): void {
+    this.difficultyDialog.classList.remove("hidden");
+  }
+
+  private hideDifficultyDialog(): void {
+    this.difficultyDialog.classList.add("hidden");
   }
 
   setTurn(turn: "white" | "black", vsAi = false): void {

@@ -62,7 +62,8 @@ async def game_socket(websocket: WebSocket) -> None:
 
                 if msg_type == "new_game":
                     ai_color = "black" if data.get("vsAi") else None
-                    engine.reset(ai_color=ai_color)
+                    difficulty = data.get("difficulty") or "easy"
+                    engine.reset(ai_color=ai_color, ai_difficulty=difficulty)
                 elif msg_type == "select":
                     engine.select(int(data["x"]), int(data["y"]))
                 elif msg_type == "move":

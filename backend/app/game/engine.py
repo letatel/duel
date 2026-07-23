@@ -47,16 +47,18 @@ class GameEngine:
     def __init__(self) -> None:
         self.reset()
 
-    def reset(self, ai_color: Optional[str] = None) -> None:
+    def reset(self, ai_color: Optional[str] = None, ai_difficulty: str = "easy") -> None:
         """Start a fresh game. `ai_color`, if given, is the side the
         built-in AI plays (see maybe_ai_move) -- the other side (and
         whoever is connected) plays the opposite color. None means
-        hot-seat: both sides are human."""
+        hot-seat: both sides are human. `ai_difficulty` picks which
+        strategy in ai.py the AI side uses ("easy" or "hard")."""
         self.board = Board.initial()
         self.turn: str = "white"
         self.winner: Optional[str] = None
         self.selected: Optional[tuple[int, int]] = None
         self.ai_color = ai_color
+        self.ai_difficulty = ai_difficulty
         self.move_count = 0
         self.last_move: Optional[LastMove] = None
 
@@ -129,7 +131,7 @@ class GameEngine:
         if self.winner is not None or self.turn != self.ai_color:
             return False
 
-        choice = ai.choose_move(self.board, self.turn)
+        choice = ai.choose_move(self.board, self.turn, self.ai_difficulty)
         if choice is None:
             return False
 

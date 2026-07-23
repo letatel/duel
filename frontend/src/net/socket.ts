@@ -52,7 +52,7 @@ export interface ErrorMessage {
 export type ServerMessage = StateMessage | ErrorMessage;
 
 type ClientMessage =
-  | { type: "new_game"; vsAi?: boolean }
+  | { type: "new_game"; vsAi?: boolean; difficulty?: "easy" | "hard" }
   | { type: "select"; x: number; y: number }
   | { type: "move"; fromX: number; fromY: number; toX: number; toY: number; bend?: "x" | "y" };
 
@@ -83,8 +83,8 @@ export class GameSocket {
     });
   }
 
-  newGame(vsAi = false): void {
-    this.send({ type: "new_game", vsAi });
+  newGame(vsAi = false, difficulty: "easy" | "hard" = "easy"): void {
+    this.send({ type: "new_game", vsAi, difficulty });
   }
 
   select(x: number, y: number): void {

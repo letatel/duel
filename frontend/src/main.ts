@@ -191,11 +191,11 @@ async function start(): Promise<void> {
 
   const hud = new Hud(
     hudRoot,
-    (newVsAi) => {
+    (newVsAi, difficulty) => {
       vsAi = newVsAi;
       awaitingFullRebuild = true;
       cameraController.setWhiteTurn(); // a fresh game always starts on white
-      socket.newGame(vsAi);
+      socket.newGame(vsAi, difficulty);
     },
     {
       min: ZOOM_MIN,

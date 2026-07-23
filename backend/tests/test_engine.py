@@ -322,3 +322,21 @@ def test_maybe_ai_move_plays_for_the_ai_and_returns_to_human_turn():
     assert engine.turn == "white"
     assert engine.move_count == 2
     assert engine.last_move is not None
+
+
+def test_reset_defaults_ai_difficulty_to_easy():
+    engine = GameEngine()
+    engine.reset(ai_color="black")
+    assert engine.ai_difficulty == "easy"
+
+
+def test_maybe_ai_move_uses_the_hard_difficulty_when_selected():
+    engine = GameEngine()
+    engine.reset(ai_color="black", ai_difficulty="hard")
+    assert engine.ai_difficulty == "hard"
+    engine.move(4, 0, 4, 1, bend=None)  # human plays white's king
+
+    moved = engine.maybe_ai_move()
+
+    assert moved is True
+    assert engine.turn == "white"
