@@ -1,10 +1,15 @@
 export type AiDifficulty = "easy" | "hard";
+export type RoomRole = "white" | "black" | "spectator";
 
 export interface ZoomConfig {
   min: number;
   max: number;
   initial: number;
   onChange: (distance: number) => void;
+}
+
+export interface RoomConfig {
+  shareUrl: string;
 }
 
 export class Hud {
@@ -15,12 +20,21 @@ export class Hud {
   private readonly zoomSlider: HTMLInputElement;
   private readonly zoomMin: number;
   private readonly zoomMax: number;
+  private readonly vsAiButton: HTMLElement;
+  private readonly newGameButton: HTMLElement;
+  private readonly roomStatusEl: HTMLElement | null;
   private errorTimeout: ReturnType<typeof setTimeout> | null = null;
 
   private lastVsAi = false;
   private lastDifficulty: AiDifficulty = "easy";
 
-  constructor(root: HTMLElement, onNewGame: (vsAi: boolean, difficulty: AiDifficulty) => void, zoom: ZoomConfig) {
+  constructor(
+    root: HTMLElement,
+    onNewGame: (vsAi: boolean, difficulty: AiDifficulty) => void,
+    onPlayOnline: () => void,
+    zoom: ZoomConfig,
+    room?: RoomConfig,
+  ) {
     this.zoomMin = zoom.min;
     this.zoomMax = zoom.max;
 
@@ -29,12 +43,22 @@ export class Hud {
         <div id="turn-indicator"></div>
         <button id="new-game-button" type="button">New game</button>
         <button id="vs-ai-button" type="button">Play vs AI</button>
+        <button id="play-online-button" type="button">Play online</button>
         <div id="zoom-control">
           <span aria-hidden="true">&minus;</span>
           <input type="range" id="zoom-slider" min="${zoom.min}" max="${zoom.max}" step="0.1" aria-label="Zoom" />
           <span aria-hidden="true">+</span>
         </div>
       </div>
+      ${
+        room
+          ? `<div id="room-bar">
+               <span id="room-status"></span>
+               <input type="text" id="room-link" readonly value="${room.shareUrl}" />
+               <button id="room-copy-button" type="button">Copy link</button>
+             </div>`
+          : ""
+      }
       <div id="difficulty-dialog" class="hidden">
         <div id="difficulty-dialog-box">
           <div id="difficulty-dialog-title">Choose AI difficulty</div>
@@ -57,14 +81,31 @@ export class Hud {
     this.errorEl = root.querySelector("#error-toast") as HTMLElement;
     this.difficultyDialog = root.querySelector("#difficulty-dialog") as HTMLElement;
     this.zoomSlider = root.querySelector("#zoom-slider") as HTMLInputElement;
+    this.vsAiButton = root.querySelector("#vs-ai-button") as HTMLElement;
+    this.newGameButton = root.querySelector("#new-game-button") as HTMLElement;
+    this.roomStatusEl = root.querySelector("#room-status");
 
     const start = (vsAi: boolean, difficulty: AiDifficulty): void => {
       this.lastVsAi = vsAi;
       this.lastDifficulty = difficulty;
       onNewGame(vsAi, difficulty);
     };
+    const playOnlineButton = root.querySelector("#play-online-button") as HTMLElement;
+
+    if (room) {
+      // A room is always exactly two humans -- "vs AI" and "start another
+      // online room from inside this one" don't apply.
+      this.vsAiButton.classList.add("hidden");
+      playOnlineButton.classList.add("hidden");
+      root.querySelector("#room-copy-button")!.addEventListener("click", () => {
+        void navigator.clipboard.writeText(room.shareUrl);
+      });
+    } else {
+      playOnlineButton.addEventListener("click", () => onPlayOnline());
+    }
+
     root.querySelector("#new-game-button")!.addEventListener("click", () => start(false, this.lastDifficulty));
-    root.querySelector("#vs-ai-button")!.addEventListener("click", () => this.showDifficultyDialog());
+    this.vsAiButton.addEventListener("click", () => this.showDifficultyDialog());
     root.querySelector("#difficulty-easy-button")!.addEventListener("click", () => {
       this.hideDifficultyDialog();
       start(true, "easy");
@@ -93,6 +134,22 @@ export class Hud {
   setTurn(turn: "white" | "black", vsAi = false): void {
     const side = turn === "white" ? "White" : "Black";
     this.turnEl.textContent = vsAi && turn === "black" ? "AI is thinking…" : `${side} to move`;
+  }
+
+  /** Room-only: shows which seat this connection holds and, while the
+   * other seat is still empty, that the game hasn't really started yet.
+   * Also hides "New game" for spectators, who the server would reject
+   * anyway -- this just avoids a pointless error toast. */
+  setRoomStatus(role: RoomRole | null, bothPlayersPresent: boolean | null): void {
+    if (!this.roomStatusEl) return;
+    if (role === "spectator") {
+      this.roomStatusEl.textContent = "You are spectating";
+      this.newGameButton.classList.add("hidden");
+      return;
+    }
+    const side = role === "white" ? "White" : "Black";
+    this.roomStatusEl.textContent =
+      bothPlayersPresent === false ? `You are ${side} — waiting for an opponent to join…` : `You are ${side}`;
   }
 
   setWinner(winner: "white" | "black" | null): void {

@@ -1,16 +1,21 @@
-"""Single WebSocket endpoint driving one hot-seat GameEngine session per
-connection. MVP scope only: no rooms, no auth, no persistence — see the
-project plan for the multiplayer phase that will add rooms on top of this
-same engine without changing engine.py.
+"""Two WebSocket endpoints:
+
+- /ws/game: one hot-seat/vs-AI GameEngine session per connection (the
+  original MVP scope -- no rooms, no auth, no persistence).
+- /ws/room/{room_id}: a shared session for up to two human players plus
+  any number of spectators, keyed by an opaque ID the client's share link
+  carries (see game/room.py).
 """
 from __future__ import annotations
 
 import asyncio
 import json
+from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..game.engine import GameEngine, IllegalMove
+from ..game.room import Role, Room
 from ..schemas import CubeView, ErrorMessage, LastMoveView, LegalMoveView, StateMessage
 
 router = APIRouter()
@@ -20,8 +25,17 @@ router = APIRouter()
 # the original's AIManager.aiDelay).
 AI_REPLY_DELAY_SECONDS = 1.0
 
+# Rooms are looked up by the opaque ID in the client's share link and live
+# only in this process's memory -- fine for a casual game between two
+# people, but a restart drops every in-progress room.
+_rooms: dict[str, Room] = {}
 
-def _state_message(engine: GameEngine) -> StateMessage:
+
+def _state_message(
+    engine: GameEngine,
+    role: Optional[Role] = None,
+    both_players_present: Optional[bool] = None,
+) -> StateMessage:
     board = [CubeView(**c) for c in engine.board.snapshot()]
     legal_moves = [
         LegalMoveView(
@@ -44,6 +58,8 @@ def _state_message(engine: GameEngine) -> StateMessage:
         legalMoves=legal_moves,
         moveNumber=engine.move_count,
         lastMove=last_move,
+        role=role,
+        bothPlayersPresent=both_players_present,
     )
 
 
@@ -90,3 +106,81 @@ async def game_socket(websocket: WebSocket) -> None:
                 await websocket.send_text(_state_message(engine).model_dump_json())
     except WebSocketDisconnect:
         pass
+
+
+async def _send_state(websocket: WebSocket, room: Room, role: Role) -> None:
+    both_present = room.white is not None and room.black is not None
+    try:
+        await websocket.send_text(_state_message(room.engine, role=role, both_players_present=both_present).model_dump_json())
+    except Exception:
+        pass  # the connection is already gone; its own handler will clean it up
+
+
+async def _broadcast_room(room: Room) -> None:
+    if room.white is not None:
+        await _send_state(room.white, room, "white")
+    if room.black is not None:
+        await _send_state(room.black, room, "black")
+    for spectator in list(room.spectators):
+        await _send_state(spectator, room, "spectator")
+
+
+@router.websocket("/ws/room/{room_id}")
+async def room_socket(websocket: WebSocket, room_id: str) -> None:
+    await websocket.accept()
+    room = _rooms.setdefault(room_id, Room())
+    role = room.assign_role(websocket)
+    # Broadcasts to everyone already in the room too, not just the new
+    # connection -- e.g. so white's "waiting for an opponent" clears the
+    # moment black actually joins.
+    await _broadcast_room(room)
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                data = json.loads(raw)
+                msg_type = data.get("type")
+
+                if msg_type == "new_game":
+                    if role == "spectator":
+                        raise IllegalMove("spectators can't start a new game")
+                    room.engine.reset()
+                elif msg_type == "select":
+                    if role == "spectator":
+                        raise IllegalMove("spectators can't play")
+                    if role != room.engine.turn:
+                        raise IllegalMove("it's not your turn")
+                    room.engine.select(int(data["x"]), int(data["y"]))
+                elif msg_type == "move":
+                    if role == "spectator":
+                        raise IllegalMove("spectators can't play")
+                    if role != room.engine.turn:
+                        raise IllegalMove("it's not your turn")
+                    room.engine.move(
+                        int(data["fromX"]),
+                        int(data["fromY"]),
+                        int(data["toX"]),
+                        int(data["toY"]),
+                        data.get("bend"),
+                    )
+                else:
+                    raise IllegalMove(f"unknown message type: {msg_type!r}")
+            except IllegalMove as exc:
+                await websocket.send_text(ErrorMessage(message=str(exc)).model_dump_json())
+                continue
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                await websocket.send_text(ErrorMessage(message="malformed message").model_dump_json())
+                continue
+
+            await _broadcast_room(room)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        room.release(websocket)
+        if room.is_empty():
+            _rooms.pop(room_id, None)
+        else:
+            # Let whoever's left know a seat opened up (e.g. the client
+            # can show "waiting for an opponent" again).
+            await _broadcast_room(room)

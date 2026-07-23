@@ -6,7 +6,7 @@ import { MoveHintView } from "./scene/moveHints";
 import { buildCubeMesh, orientationQuaternion, PIECE_HALF_HEIGHT } from "./scene/cube";
 import { loadCubeModels, loadGameBoard } from "./scene/models";
 import { OrbitCameraController, ZOOM_MAX, ZOOM_MIN } from "./scene/camera";
-import { GameSocket, type ServerMessage, type StateMessage } from "./net/socket";
+import { GameSocket, roomSocketUrl, type RoomRole, type ServerMessage, type StateMessage } from "./net/socket";
 import { BoardInput, resolveBend } from "./game/input";
 import { RollAnimation } from "./game/animate";
 import { pathSteps } from "./game/path";
@@ -16,6 +16,23 @@ const appRoot = document.querySelector<HTMLDivElement>("#app")!;
 appRoot.innerHTML = `<div id="viewport"></div><div id="hud-root"></div>`;
 const viewport = appRoot.querySelector<HTMLDivElement>("#viewport")!;
 const hudRoot = appRoot.querySelector<HTMLDivElement>("#hud-root")!;
+
+// A room ID in the URL means "join this shared multiplayer game" instead
+// of the default local hot-seat/vs-AI session -- see backend/app/api/ws.py's
+// /ws/room/{id}. Generating a short random one client-side and navigating
+// there (see the "Play online" button below) is enough to create a room;
+// the server makes it real on first connection.
+const roomId = new URLSearchParams(window.location.search).get("room");
+
+function generateRoomId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function navigateToNewRoom(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", generateRoomId());
+  window.location.href = url.toString();
+}
 
 // ── Scene setup ───────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -101,11 +118,17 @@ async function start(): Promise<void> {
   let latestState: StateMessage | null = null;
   // Tracks the last move we've already animated, by the server's
   // move-count -- not our own memory of what we last requested, since an
-  // AI move arrives unprompted and still needs to be animated the same
-  // way a human move would be.
+  // AI move (or a room opponent's move) arrives unprompted and still
+  // needs to be animated the same way a move we ourselves requested would.
   let lastAnimatedMoveNumber = 0;
   let awaitingFullRebuild = true;
   let vsAi = false;
+  // Which seat this connection holds in a room (null outside room mode).
+  // Unlike vsAi's local hot-seat flip, a room player is a different
+  // physical device on each side and should just always look at the
+  // board from their own side -- set once, the first time it's known.
+  let myRole: RoomRole | null = null;
+  let cameraFixedForRole = false;
   const activeAnimations: RollAnimation[] = [];
 
   function applyHighlights(state: StateMessage): void {
@@ -152,10 +175,21 @@ async function start(): Promise<void> {
       lastAnimatedMoveNumber = state.moveNumber;
     }
 
+    if (state.role) myRole = state.role;
+
+    if (!cameraFixedForRole && (myRole === "white" || myRole === "black")) {
+      if (myRole === "white") cameraController.setWhiteTurn();
+      else cameraController.setBlackTurn();
+      cameraFixedForRole = true;
+    }
+
     // Against the AI the human always plays white and watches from the
-    // same side throughout -- only hot-seat (two humans sharing the
-    // screen) needs the camera to flip to face whoever's turn it is.
-    if (!vsAi && (!latestState || latestState.turn !== state.turn)) {
+    // same side throughout; a room player is fixed to their own side
+    // above. Only hot-seat (two humans sharing one screen) and room
+    // spectators (watching over either shoulder in turn) need the camera
+    // to flip to face whoever's turn it is.
+    const followsTurn = !vsAi && myRole !== "white" && myRole !== "black";
+    if (followsTurn && (!latestState || latestState.turn !== state.turn)) {
       if (state.turn === "white") cameraController.setWhiteTurn();
       else cameraController.setBlackTurn();
     }
@@ -163,10 +197,11 @@ async function start(): Promise<void> {
     latestState = state;
     applyHighlights(state);
     hud.setTurn(state.turn, vsAi);
+    hud.setRoomStatus(state.role, state.bothPlayersPresent);
     hud.setWinner(state.winner);
   }
 
-  const socket = new GameSocket(handleServerMessage);
+  const socket = new GameSocket(handleServerMessage, roomId ? roomSocketUrl(roomId) : undefined);
 
   // ── Input ────────────────────────────────────────────────────────────
   new BoardInput(
@@ -176,6 +211,8 @@ async function start(): Promise<void> {
     (x, y, hitPoint) => {
       if (!latestState || latestState.winner || activeAnimations.length > 0) return;
       if (vsAi && latestState.turn === "black") return; // AI's turn
+      if (myRole === "spectator") return;
+      if ((myRole === "white" || myRole === "black") && latestState.turn !== myRole) return;
 
       const legalMove = latestState.legalMoves.find((m) => m.x === x && m.y === y);
       if (latestState.selected && legalMove) {
@@ -194,15 +231,17 @@ async function start(): Promise<void> {
     (newVsAi, difficulty) => {
       vsAi = newVsAi;
       awaitingFullRebuild = true;
-      cameraController.setWhiteTurn(); // a fresh game always starts on white
+      if (!roomId) cameraController.setWhiteTurn(); // a fresh hot-seat/vs-AI game always starts on white
       socket.newGame(vsAi, difficulty);
     },
+    () => navigateToNewRoom(),
     {
       min: ZOOM_MIN,
       max: ZOOM_MAX,
       initial: cameraController.getDistance(),
       onChange: (distance) => cameraController.setDistance(distance),
     },
+    roomId ? { shareUrl: window.location.href } : undefined,
   );
 
   // ── Render loop ──────────────────────────────────────────────────────

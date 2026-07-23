@@ -52,6 +52,17 @@ class StateMessage(BaseModel):
     # unprompted, so it can't rely on remembering its own last request.
     moveNumber: int = 0
     lastMove: Optional[LastMoveView] = None
+    # Which seat *this* connection holds in a multiplayer room (see
+    # api/ws.py's /ws/room/{id}) -- unset for the single-connection
+    # hot-seat/vs-AI endpoint, which has no such concept. Every recipient
+    # in a room gets their own copy of this message with their own role,
+    # even though the rest of the state is identical for everyone.
+    role: Optional[Literal["white", "black", "spectator"]] = None
+    # Whether both player seats in the room are currently filled -- lets
+    # the client show "waiting for an opponent" instead of a live game
+    # state. Unset for the single-connection endpoint, which has no
+    # concept of seats to wait on.
+    bothPlayersPresent: Optional[bool] = None
 
 
 class ErrorMessage(BaseModel):

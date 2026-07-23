@@ -122,6 +122,28 @@ incrementing counter, so `main.ts` animates by noticing the counter went
 up, regardless of who moved — the same mechanism a future networked
 opponent's moves would use too.
 
+## Online play (rooms)
+
+Clicking "Play online" generates a short random room ID client-side and
+navigates to `?room=<id>`; that URL is the link to share. The frontend then
+connects to `/ws/room/{id}` instead of `/ws/game` (`net/socket.ts`'s
+`roomSocketUrl`) and `main.ts` reads `?room=` on load to decide which one to
+use. `backend/app/game/room.py`'s `Room` holds one `GameEngine` shared by
+everyone in it: the first connection becomes white, the second black, and
+anyone after that just watches (`Room.assign_role`) — see `api/ws.py`'s
+`room_socket` and `_broadcast_room`, which sends every connection its own
+`StateMessage.role`/`bothPlayersPresent` alongside the identical shared board
+state. The server rejects a `select`/`move` from a connection whose role
+doesn't match whose turn it actually is (`engine.move`/`select` only check
+the *cube's* color, not which connection asked, so the room endpoint has to
+enforce that itself) and rejects spectators outright.
+
+Rooms are plain in-memory dicts, gone on server restart, with no
+reconnect-to-the-same-seat: if a player's connection drops, `Room.release`
+frees their seat for the next person who opens the link, rather than holding
+it for them. Good enough for two people sharing a link for a casual game; a
+real lobby/matchmaking system is out of scope.
+
 ## Deploy
 
 Served in production at `https://<host>:8443/duel/` behind a bundled nginx +
@@ -145,6 +167,7 @@ twice daily (nginx doesn't need a restart for a renewed cert — `-s reload` re-
 
 ## Known gaps / follow-ups
 
-- Multiplayer, menus/settings/localization/chat are not built yet — see
-  the project plan for how they layer on top of this without changing
-  `backend/app/game/`.
+- Rooms have no reconnect-to-the-same-seat (a dropped connection just frees
+  the seat), no persistence across a server restart, and no lobby/matchmaking
+  beyond "share a link" — see "Online play (rooms)" above.
+- Menus/settings/localization/chat are not built yet.
