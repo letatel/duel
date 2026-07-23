@@ -13,6 +13,21 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+_CANONICAL_AXIS: dict[int, tuple[int, int, int]] = {
+    1: (0, 1, 0), 6: (0, -1, 0),
+    2: (0, 0, 1), 5: (0, 0, -1),
+    3: (1, 0, 0), 4: (-1, 0, 0),
+}
+
+
+def _cross(a: tuple[int, int, int], b: tuple[int, int, int]) -> tuple[int, int, int]:
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def _dot(a: tuple[int, int, int], b: tuple[int, int, int]) -> int:
+    return sum(x * y for x, y in zip(a, b))
+
+
 class Direction(str, Enum):
     NORTH = "north"  # +y
     SOUTH = "south"  # -y
@@ -47,6 +62,29 @@ class Orientation:
             north=north, south=7 - north,
             east=east, west=7 - east,
         )
+
+    @classmethod
+    def from_top_and_north(cls, top: int, north: int) -> "Orientation":
+        """Build the one physically-valid orientation with the given top and
+        north face values. A die's full orientation follows from just these
+        two faces -- the remaining four, including which face of the leftover
+        complementary pair is east vs. west, are fixed by the die's chirality.
+        Picking that pair by any other rule (e.g. numeric sort) can produce a
+        mirror-image orientation no rotation could ever actually reach, which
+        silently desyncs from a renderer that reconstructs the mesh rotation
+        geometrically from just (top, north), like the frontend does -- the
+        two agree at rest but diverge the first time the piece rolls along
+        the east/west axis, since 'east' from that point on means different
+        physical faces to each side.
+        """
+        bottom = 7 - top
+        south = 7 - north
+        a, b = sorted(set(range(1, 7)) - {top, bottom, north, south})
+        if _dot(_cross(_CANONICAL_AXIS[top], _CANONICAL_AXIS[north]), _CANONICAL_AXIS[a]) > 0:
+            east, west = a, b
+        else:
+            east, west = b, a
+        return cls(top=top, bottom=bottom, north=north, south=south, east=east, west=west)
 
     def rolled(self, direction: Direction) -> "Orientation":
         """Return the orientation after tipping the die one cell in `direction`."""

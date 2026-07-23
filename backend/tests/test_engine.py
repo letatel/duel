@@ -1,7 +1,7 @@
 import pytest
 
 from app.game.board import Bend, Board
-from app.game.cube import Cube, Orientation
+from app.game.cube import Cube, Direction, Orientation
 from app.game.engine import GameEngine, IllegalMove, LastMove
 
 
@@ -42,6 +42,37 @@ def test_initial_pawns_face_the_opponent_with_back_face_3():
         # White advances toward y=7 (north); black advances toward y=0 (south).
         assert white.north == 4 and white.south == 3
         assert black.south == 4 and black.north == 3
+
+
+def test_initial_pawn_orientations_are_all_physically_reachable():
+    # Regression test: the starting layout used to pick each pawn's
+    # east/west by numeric sort rather than physical chirality, which built
+    # a mirror-image orientation for half the board -- correct at rest, but
+    # silently diverging from the frontend's geometric reconstruction after
+    # the first east/west roll (see test_cube_moves.py's
+    # test_from_top_and_north_matches_every_physically_reachable_orientation
+    # for the underlying invariant this checks against).
+    start = Orientation.standard()
+    reachable = {(start.top, start.north): start}
+    frontier = [start]
+    while frontier:
+        next_frontier = []
+        for o in frontier:
+            for direction in Direction:
+                rolled = o.rolled(direction)
+                key = (rolled.top, rolled.north)
+                if key not in reachable:
+                    reachable[key] = rolled
+                    next_frontier.append(rolled)
+        frontier = next_frontier
+
+    board = Board.initial()
+    for x in range(9):
+        if x == 4:
+            continue
+        for y in (0, 7):
+            o = board.at(x, y).orientation
+            assert reachable[(o.top, o.north)] == o, f"x={x} y={y}"
 
 
 # ── Legal move generation ────────────────────────────────────────────────

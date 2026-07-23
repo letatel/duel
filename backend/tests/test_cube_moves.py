@@ -1,6 +1,26 @@
 from app.game.cube import Cube, Direction, Orientation
 
 
+def _reachable_orientations() -> dict[tuple[int, int], Orientation]:
+    """Every orientation reachable from the standard start by rolling,
+    keyed by (top, north) -- used to check from_top_and_north against
+    actual physical reachability instead of a hardcoded expectation."""
+    start = Orientation.standard()
+    seen = {(start.top, start.north): start}
+    frontier = [start]
+    while frontier:
+        next_frontier = []
+        for o in frontier:
+            for direction in Direction:
+                rolled = o.rolled(direction)
+                key = (rolled.top, rolled.north)
+                if key not in seen:
+                    seen[key] = rolled
+                    next_frontier.append(rolled)
+        frontier = next_frontier
+    return seen
+
+
 def test_orientation_opposite_faces_sum_to_seven():
     o = Orientation.standard()
     assert o.top + o.bottom == 7
@@ -59,3 +79,22 @@ def test_rolled_to_king_moves_without_changing_orientation():
     moved = cube.rolled_to(Direction.NORTH)
     assert (moved.x, moved.y) == (4, 1)
     assert moved.orientation == cube.orientation
+
+
+def test_from_top_and_north_matches_every_physically_reachable_orientation():
+    # Regression test for a real bug: the original starting-layout code
+    # picked east/west for each pawn by sorting the two leftover face
+    # values numerically, which for half the board produced a
+    # mirror-image orientation no rotation could ever actually reach.
+    # That pawn would render correctly at rest (only top/north are drawn)
+    # but silently disagree with the frontend's geometrically-reconstructed
+    # mesh the first time it rolled along the east/west axis, showing the
+    # wrong face on top from then on (reported as die values "2 and 5
+    # swapping"). from_top_and_north must always pick the same east/west
+    # as physically rolling a real die to that (top, north) would.
+    reachable = _reachable_orientations()
+    assert len(reachable) == 24  # every one of the 24 rotational states of a cube
+
+    for (top, north), expected in reachable.items():
+        built = Orientation.from_top_and_north(top, north)
+        assert built == expected

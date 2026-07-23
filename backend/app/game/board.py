@@ -36,12 +36,8 @@ _BACK_FACE = 3
 
 def _pawn_orientation(x: int, front_is_north: bool) -> Orientation:
     top = _TOP_FACE_BY_COLUMN[x]
-    bottom = 7 - top
-    north, south = (_FRONT_FACE, _BACK_FACE) if front_is_north else (_BACK_FACE, _FRONT_FACE)
-    # top/bottom and north/south each come from one of the three
-    # complementary {1..6} pairs; the pair left over is east/west.
-    east, west = sorted(set(range(1, 7)) - {top, bottom, north, south})
-    return Orientation(top=top, bottom=bottom, north=north, south=south, east=east, west=west)
+    north = _FRONT_FACE if front_is_north else _BACK_FACE
+    return Orientation.from_top_and_north(top, north)
 
 
 class Bend(str, Enum):
