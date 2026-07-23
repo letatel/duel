@@ -16,7 +16,7 @@ export const PIECE_HALF_HEIGHT = PIECE_SIZE / 2;
 // orientation, and rolling it via game/animate.ts's RollAnimation keeps
 // the visible top face in sync with the server-authoritative value
 // without ever reading the value back from the server mid-roll.
-const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
+export const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
   1: [[0.5, 0.5]],
   2: [
     [0.28, 0.28],

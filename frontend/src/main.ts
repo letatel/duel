@@ -2,6 +2,7 @@ import * as THREE from "three";
 import "./style.css";
 
 import { BoardView, tileCenter } from "./scene/board";
+import { MoveHintView } from "./scene/moveHints";
 import { buildCubeMesh, orientationQuaternion, PIECE_HALF_HEIGHT } from "./scene/cube";
 import { loadCubeModels, loadGameBoard } from "./scene/models";
 import { OrbitCameraController, ZOOM_MAX, ZOOM_MIN } from "./scene/camera";
@@ -60,6 +61,9 @@ scene.add(sun);
 const board = new BoardView();
 scene.add(board.group);
 
+const moveHints = new MoveHintView();
+scene.add(moveHints.group);
+
 const cameraController = new OrbitCameraController(camera, boardCenter, renderer.domElement);
 
 // Everything below depends on the real piece models being loaded first,
@@ -101,13 +105,16 @@ async function start(): Promise<void> {
 
   function applyHighlights(state: StateMessage): void {
     board.clearHighlights();
+    let selectedIsKing = false;
     if (state.selected) {
       const [sx, sy] = state.selected;
       board.highlightSelected(sx, sy);
+      selectedIsKing = cubesByPosition.get(posKey(sx, sy))?.isKing ?? false;
     }
     for (const move of state.legalMoves) {
       board.highlightMove(move.x, move.y);
     }
+    moveHints.update(state.legalMoves, selectedIsKing);
   }
 
   function handleServerMessage(msg: ServerMessage): void {

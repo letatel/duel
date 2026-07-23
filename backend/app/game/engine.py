@@ -93,9 +93,7 @@ class GameEngine:
         if required not in allowed_bends:
             raise IllegalMove("that path is blocked in the requested direction")
 
-        rolled = cube
-        for step in Board.path_steps(dx, dy, required):
-            rolled = rolled.rolled_to(step)
+        rolled = Board.resulting_cube(cube, dx, dy, required)
 
         self.board.remove(from_x, from_y)
         captured = self.board.remove(to_x, to_y)

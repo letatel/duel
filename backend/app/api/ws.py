@@ -18,7 +18,12 @@ router = APIRouter()
 def _state_message(engine: GameEngine) -> StateMessage:
     board = [CubeView(**c) for c in engine.board.snapshot()]
     legal_moves = [
-        LegalMoveView(x=m.x, y=m.y, bends=[b.value for b in m.bends])
+        LegalMoveView(
+            x=m.x,
+            y=m.y,
+            bends=[b.value for b in m.bends],
+            values={bend.value: value for bend, value in m.resulting_values.items()},
+        )
         for m in engine.legal_moves_for_selected()
     ]
     return StateMessage(

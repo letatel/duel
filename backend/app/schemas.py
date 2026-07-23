@@ -24,6 +24,11 @@ class LegalMoveView(BaseModel):
     x: int
     y: int
     bends: list[Literal["straight", "x_then_y", "y_then_x"]]
+    # Resulting top-face value per bend, so the client can preview it on
+    # the tile before the move is made (see app/game/board.py's
+    # LegalMove.resulting_values for why this is keyed per bend rather
+    # than being a single number).
+    values: dict[Literal["straight", "x_then_y", "y_then_x"], int]
 
 
 class StateMessage(BaseModel):

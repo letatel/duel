@@ -17,6 +17,9 @@ export interface LegalMoveView {
   x: number;
   y: number;
   bends: BendKind[];
+  // Resulting top-face value per available bend -- lets the client
+  // preview it on the tile before the move is made.
+  values: Partial<Record<BendKind, number>>;
 }
 
 export interface StateMessage {

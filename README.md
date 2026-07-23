@@ -87,6 +87,20 @@ reproduce that look on top of the real board's flat yellow surface.
 selected/legal-move highlight overlays (opacity 0 by default, never
 `visible = false` since `Raycaster` skips invisible objects).
 
+## Move-value preview
+
+Selecting a pawn previews, per reachable tile, what value it'll show on top
+after landing there — the same die-face marker the original shows
+(`Assets/Scripts/BoardTurn.cs`). `Board.legal_moves` (`backend/app/game/board.py`)
+computes this per bend order via `Board.resulting_cube` (shared with
+`GameEngine.move`, which actually executes it) and ships it to the client as
+`LegalMoveView.values`. When a tile is only reachable one way, or both bend
+orders happen to leave the same face up, `scene/moveHints.ts` draws one
+number; when the two orders leave *different* faces up, it draws a
+diagonally-split marker, one number per order (matching whichever bend
+`game/input.ts`'s `resolveBend` will actually send). The king shows no
+number — its value is always 1, so there's nothing to preview.
+
 ## Deploy
 
 Served in production at `https://<host>:8443/duel/` behind a bundled nginx +

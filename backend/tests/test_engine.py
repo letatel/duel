@@ -119,6 +119,42 @@ def test_out_of_bounds_destinations_are_excluded():
     assert (-2, 0) not in dests
 
 
+# ── Move-preview values (for the client's per-tile die-value hint) ───────
+
+def test_straight_move_reports_the_resulting_value():
+    board = Board()
+    # top=1, north=2, south=5: rolling one step north brings the old south
+    # face (5) up to the top.
+    cube = Cube(color="white", is_king=False, x=4, y=4, orientation=Orientation.standard())
+    board.place(cube)
+    moves = {(m.x, m.y): m for m in board.legal_moves(cube)}
+    move = moves[(4, 5)]
+    assert move.bends == frozenset({Bend.STRAIGHT})
+    assert move.resulting_values == {Bend.STRAIGHT: 5}
+
+
+def test_oblique_move_reports_a_different_value_per_bend_order():
+    # A hand-verified case where the two roll orders leave different faces
+    # up -- this is exactly why the original game splits the preview
+    # marker in two for these tiles instead of showing one number.
+    orientation = Orientation(top=2, bottom=5, north=1, south=6, east=3, west=4)
+    cube = Cube(color="white", is_king=False, x=4, y=4, orientation=orientation)
+    board = Board()
+    board.place(cube)
+    moves = {(m.x, m.y): m for m in board.legal_moves(cube)}
+    move = moves[(5, 5)]  # dx=1, dy=1: reachable via either bend order
+    assert move.bends == frozenset({Bend.X_THEN_Y, Bend.Y_THEN_X})
+    assert move.resulting_values == {Bend.X_THEN_Y: 6, Bend.Y_THEN_X: 4}
+
+
+def test_king_move_value_is_always_one():
+    king = Cube(color="white", is_king=True, x=4, y=4, orientation=Orientation.standard())
+    board = Board()
+    board.place(king)
+    moves = {(m.x, m.y): m for m in board.legal_moves(king)}
+    assert moves[(4, 5)].resulting_values == {Bend.STRAIGHT: 1}
+
+
 # ── GameEngine: selection, moves, turns, victory ─────────────────────────
 
 def empty_engine() -> GameEngine:

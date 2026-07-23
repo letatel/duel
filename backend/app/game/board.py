@@ -57,6 +57,13 @@ class LegalMove:
     x: int
     y: int
     bends: frozenset[Bend]
+    # The die value the moving cube would show on top after landing here,
+    # for each available bend order -- lets the client preview the result
+    # before committing to a move (the original Unity version shows this
+    # as a pip-face marker per reachable tile, split in two when the two
+    # bend orders would leave different faces up). Always {Bend.STRAIGHT: 1}
+    # for the king, since its value never changes.
+    resulting_values: dict[Bend, int]
 
 
 def _sign(n: int) -> int:
@@ -146,9 +153,20 @@ class Board:
                 if target is not None and target.color == cube.color:
                     continue
 
-                moves.append(LegalMove(tx, ty, frozenset(bends)))
+                values = {bend: self.resulting_cube(cube, dx, dy, bend).value for bend in bends}
+                moves.append(LegalMove(tx, ty, frozenset(bends), values))
 
         return moves
+
+    @staticmethod
+    def resulting_cube(cube: Cube, dx: int, dy: int, bend: Bend) -> Cube:
+        """The cube as it would be after following `bend`'s roll sequence
+        from its current square by (dx, dy) -- shared by move preview
+        (legal_moves, above) and actually executing a move (engine.py)."""
+        rolled = cube
+        for step in Board.path_steps(dx, dy, bend):
+            rolled = rolled.rolled_to(step)
+        return rolled
 
     def _clear_bends(self, x: int, y: int, dx: int, dy: int) -> set[Bend]:
         bends: set[Bend] = set()
