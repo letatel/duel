@@ -18,7 +18,7 @@ router = APIRouter()
 # Pause between sending the human's move and the AI's reply, purely so the
 # human's own move finishes animating before the AI's move starts (mirrors
 # the original's AIManager.aiDelay).
-AI_REPLY_DELAY_SECONDS = 0.6
+AI_REPLY_DELAY_SECONDS = 1.0
 
 
 def _state_message(engine: GameEngine) -> StateMessage:
