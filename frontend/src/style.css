@@ -1,0 +1,119 @@
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+  font: 16px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#viewport {
+  position: absolute;
+  inset: 0;
+}
+
+#viewport canvas {
+  display: block;
+}
+
+#hud-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+#zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(20, 20, 24, 0.7);
+  color: #f2ede2;
+}
+
+#zoom-control span {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+#zoom-slider {
+  width: 120px;
+  accent-color: #6fd07a;
+}
+
+#turn-indicator {
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(20, 20, 24, 0.7);
+  color: #f2ede2;
+  font-weight: 600;
+}
+
+button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(20, 20, 24, 0.7);
+  color: #f2ede2;
+  cursor: pointer;
+  font: inherit;
+}
+
+button:hover {
+  background: rgba(40, 40, 46, 0.85);
+}
+
+#winner-banner {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 40px;
+  border-radius: 16px;
+  background: rgba(15, 15, 18, 0.9);
+  color: #f2ede2;
+  font-size: 28px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+#error-toast {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: rgba(160, 40, 40, 0.85);
+  color: white;
+  pointer-events: none;
+}
+
+.hidden {
+  display: none !important;
+}
