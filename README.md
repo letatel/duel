@@ -76,15 +76,37 @@ convention `scene/cube.ts`'s `orientationQuaternion` and the backend's
 authored standing up like a wall, with its edges swapped relative to our
 9-wide x 8-deep grid — laid flat then spun 90 degrees, scaled so its
 bounding box matches the 9:8 aspect ratio (confirmed empirically: the raw
-model's own width:depth ratio is already ~8:9). The 9x8 grid pattern
-visible in the original turned out to be carved into the mesh's geometry
-(bevels) rather than a separate material or texture — too subtle to read
-under normal lighting once converted — so `scene/board.ts` draws its own
-thin grid lines on top to reproduce that look. `scene/board.ts`'s
-per-tile meshes are now purely invisible raycast targets and
+model's own width:depth ratio is already ~8:9). The 9x8 relief grid visible
+in the original (tiles recessed, dividers standing proud) turned out to be
+carved into the mesh's own geometry rather than a separate material or
+texture — too subtle to read under normal lighting once converted — so
+`scene/board.ts` builds its own raised ridge geometry along each grid
+boundary (real 3D boxes catching light/shadow, not flat painted lines) to
+reproduce that look on top of the real board's flat yellow surface.
+`scene/board.ts`'s per-tile meshes are purely invisible raycast targets and
 selected/legal-move highlight overlays (opacity 0 by default, never
-`visible = false` since `Raycaster` skips invisible objects), sitting a
-hair above the real board's surface.
+`visible = false` since `Raycaster` skips invisible objects).
+
+## Deploy
+
+Served in production at `https://<host>:8443/duel/` behind a bundled nginx +
+Let's Encrypt (port 8443 rather than 443, since that's commonly already taken
+by something else — adjust `deploy/nginx/*.conf` and `docker-compose.yml`'s
+port mappings if not). `frontend/vite.config.ts`'s `base: '/duel/'` and
+`scene/models.ts`'s `import.meta.env.BASE_URL`-prefixed model URLs assume
+this path; change both together if the path ever moves.
+
+```sh
+docker compose build
+# first run only: bootstrap nginx (HTTP-only, no cert yet) then obtain one
+docker compose up -d nginx backend
+docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+  -d <your-domain> --email <your-email> --agree-tos --non-interactive
+docker compose restart nginx   # entrypoint.sh picks up the now-present cert
+```
+
+Renewal: cron `docker compose run --rm certbot renew --quiet && docker compose exec nginx nginx -s reload`,
+twice daily (nginx doesn't need a restart for a renewed cert — `-s reload` re-reads it from disk).
 
 ## Known gaps / follow-ups
 

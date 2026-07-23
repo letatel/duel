@@ -14,11 +14,15 @@ export interface CubeModelSet {
   kingBlack: THREE.Object3D;
 }
 
+// These live in public/ (copied as-is, not bundled), so unlike imported
+// modules they don't automatically pick up vite.config.ts's `base` --
+// BASE_URL is Vite's own resolved value of that same setting (import.meta.env.BASE_URL, "/" in dev,
+// "/duel/" in the production build), so this still works either way.
 const MODEL_URLS: Record<keyof CubeModelSet, string> = {
-  cubWhite: "/models/cubWhite.glb",
-  cubBlack: "/models/cubBlack.glb",
-  kingWhite: "/models/kingWhite.glb",
-  kingBlack: "/models/kingBlack.glb",
+  cubWhite: `${import.meta.env.BASE_URL}models/cubWhite.glb`,
+  cubBlack: `${import.meta.env.BASE_URL}models/cubBlack.glb`,
+  kingWhite: `${import.meta.env.BASE_URL}models/kingWhite.glb`,
+  kingBlack: `${import.meta.env.BASE_URL}models/kingBlack.glb`,
 };
 
 const TARGET_SIZE = PIECE_SIZE;
@@ -100,7 +104,7 @@ async function loadNormalized(
  * the x axis (verified by comparing bounding-box aspect ratio to 9:8). */
 export async function loadGameBoard(): Promise<THREE.Object3D> {
   const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync("/models/GameBoard.glb");
+  const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/GameBoard.glb`);
   const root = gltf.scene;
 
   const layFlat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);

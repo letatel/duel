@@ -1,0 +1,37 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    networks: [duel]
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "8443:8443"
+    volumes:
+      - certbot-www:/var/www/certbot:ro
+      - certbot-conf:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+    networks: [duel]
+
+  # Not run continuously -- invoked on demand for the initial certificate
+  # (`docker compose run --rm certbot certonly ...`) and for renewal (see
+  # /etc/cron.d/duel-certbot on the host).
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-conf:/etc/letsencrypt
+    networks: [duel]
+
+networks:
+  duel:
+
+volumes:
+  certbot-www:
+  certbot-conf:

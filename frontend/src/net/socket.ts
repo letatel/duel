@@ -40,9 +40,14 @@ type ClientMessage =
   | { type: "select"; x: number; y: number }
   | { type: "move"; fromX: number; fromY: number; toX: number; toY: number; bend?: "x" | "y" };
 
-// Port 8000 is a common default but was already occupied by an unrelated
-// service on the dev machine this was built on -- 8010 sidesteps that.
-const DEFAULT_URL = "ws://127.0.0.1:8010/ws/game";
+// In dev (`npm run dev`), the backend runs locally on its own port -- 8010
+// sidesteps 8000, which was already occupied by an unrelated service on the
+// dev machine this was built on. In production, nginx proxies /duel/ws/game
+// on the same origin the page was served from (see deploy/nginx/nginx.conf),
+// so the URL is derived from window.location instead of hardcoded.
+const DEFAULT_URL = import.meta.env.DEV
+  ? "ws://127.0.0.1:8010/ws/game"
+  : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/duel/ws/game`;
 
 export class GameSocket {
   private ws: WebSocket;
