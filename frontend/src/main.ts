@@ -17,12 +17,37 @@ appRoot.innerHTML = `<div id="viewport"></div><div id="hud-root"></div>`;
 const viewport = appRoot.querySelector<HTMLDivElement>("#viewport")!;
 const hudRoot = appRoot.querySelector<HTMLDivElement>("#hud-root")!;
 
+// A silently-failed model/board load leaves nothing but the background
+// color on screen, with no way to see *why* on a phone that isn't hooked
+// up to remote devtools -- surface it directly instead.
+let fatalErrorEl: HTMLPreElement | null = null;
+function showFatalError(message: string): void {
+  if (!fatalErrorEl) {
+    fatalErrorEl = document.createElement("pre");
+    fatalErrorEl.id = "fatal-error";
+    fatalErrorEl.style.cssText =
+      "position:fixed;inset:auto 0 0 0;margin:0;padding:10px;background:#a02828;color:#fff;" +
+      "font:11px/1.4 monospace;white-space:pre-wrap;word-break:break-word;z-index:9999;" +
+      "max-height:40vh;overflow:auto;";
+    document.body.appendChild(fatalErrorEl);
+  }
+  fatalErrorEl.textContent += message + "\n";
+}
+window.addEventListener("error", (e) => showFatalError(`error: ${e.message}`));
+window.addEventListener("unhandledrejection", (e) => showFatalError(`unhandled rejection: ${String(e.reason)}`));
+
 // A room ID in the URL means "join this shared multiplayer game" instead
 // of the default local hot-seat/vs-AI session -- see backend/app/api/ws.py's
 // /ws/room/{id}. Generating a short random one client-side and navigating
 // there (see the "Play online" button below) is enough to create a room;
 // the server makes it real on first connection.
 const roomId = new URLSearchParams(window.location.search).get("room");
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+  });
+}
 
 function generateRoomId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -224,6 +249,7 @@ async function start(): Promise<void> {
         socket.select(x, y);
       }
     },
+    () => cameraController.isPinching(),
   );
 
   const hud = new Hud(

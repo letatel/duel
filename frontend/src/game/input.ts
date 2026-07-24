@@ -2,6 +2,14 @@ import * as THREE from "three";
 import { bendSideAt } from "../scene/board";
 import type { LegalMoveView } from "../net/socket";
 
+// Touch has no separate "rotate the camera" button the way a mouse has a
+// right button (see OrbitCameraController), so a single-finger touch has
+// to serve both as "select this tile" and "drag to orbit". A tap (little
+// movement, released quickly) is a selection; anything that moves more
+// than this before release was a drag, not a tap.
+const TAP_MOVE_THRESHOLD_PX = 10;
+const TAP_MAX_DURATION_MS = 500;
+
 /** Raycasts pointer clicks against the board's tile meshes and reports
  * which (boardX, boardY) tile was hit, plus the exact world hit point
  * (used to resolve an ambiguous bend direction -- see resolveBend). */
@@ -12,25 +20,51 @@ export class BoardInput {
   private readonly domElement: HTMLElement;
   private readonly tiles: () => THREE.Object3D[];
   private readonly onTileClick: (x: number, y: number, hitPoint: THREE.Vector3) => void;
+  private readonly isCameraGesturing: () => boolean;
+
+  private touchStartX = 0;
+  private touchStartY = 0;
+  private touchStartTime = 0;
 
   constructor(
     camera: THREE.Camera,
     domElement: HTMLElement,
     tiles: () => THREE.Object3D[],
     onTileClick: (x: number, y: number, hitPoint: THREE.Vector3) => void,
+    isCameraGesturing: () => boolean = () => false,
   ) {
     this.camera = camera;
     this.domElement = domElement;
     this.tiles = tiles;
     this.onTileClick = onTileClick;
+    this.isCameraGesturing = isCameraGesturing;
     domElement.addEventListener("pointerdown", (e) => this.handlePointerDown(e));
+    domElement.addEventListener("pointerup", (e) => this.handlePointerUp(e));
   }
 
   private handlePointerDown(event: PointerEvent): void {
+    if (event.pointerType === "touch") {
+      this.touchStartX = event.clientX;
+      this.touchStartY = event.clientY;
+      this.touchStartTime = performance.now();
+      return;
+    }
     if (event.button !== 0) return;
+    this.raycastAndClick(event.clientX, event.clientY);
+  }
+
+  private handlePointerUp(event: PointerEvent): void {
+    if (event.pointerType !== "touch") return;
+    const movedPx = Math.hypot(event.clientX - this.touchStartX, event.clientY - this.touchStartY);
+    const elapsedMs = performance.now() - this.touchStartTime;
+    if (movedPx > TAP_MOVE_THRESHOLD_PX || elapsedMs > TAP_MAX_DURATION_MS || this.isCameraGesturing()) return;
+    this.raycastAndClick(event.clientX, event.clientY);
+  }
+
+  private raycastAndClick(clientX: number, clientY: number): void {
     const rect = this.domElement.getBoundingClientRect();
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObjects(this.tiles(), false);
