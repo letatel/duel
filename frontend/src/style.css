@@ -69,6 +69,13 @@ body {
   line-height: 1;
 }
 
+#authors-button {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
+  pointer-events: auto;
+}
+
 #zoom-control {
   display: flex;
   align-items: center;
@@ -141,12 +148,6 @@ button:hover {
   font: inherit;
 }
 
-#credits {
-  font-size: 11px;
-  opacity: 0.55;
-  white-space: nowrap;
-}
-
 #difficulty-dialog {
   position: absolute;
   inset: 0;
@@ -176,6 +177,42 @@ button:hover {
 #difficulty-dialog-buttons {
   display: flex;
   gap: 12px;
+}
+
+#authors-dialog {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+#authors-dialog-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 40px;
+  border-radius: 16px;
+  background: rgba(15, 15, 18, 0.95);
+  color: #f2ede2;
+}
+
+#authors-dialog-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+#authors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
 }
 
 #winner-banner {

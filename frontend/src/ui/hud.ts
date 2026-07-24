@@ -17,6 +17,7 @@ export class Hud {
   private readonly winnerBanner: HTMLElement;
   private readonly errorEl: HTMLElement;
   private readonly difficultyDialog: HTMLElement;
+  private readonly authorsDialog: HTMLElement;
   private readonly zoomSlider: HTMLInputElement;
   private readonly zoomMin: number;
   private readonly zoomMax: number;
@@ -66,9 +67,9 @@ export class Hud {
                  </div>`
               : ""
           }
-          <div id="credits">Yuriy Sagadatov, Alexey Lagunov, Claude Code</div>
         </div>
       </div>
+      <button id="authors-button" type="button">Authors</button>
       <div id="difficulty-dialog" class="hidden">
         <div id="difficulty-dialog-box">
           <div id="difficulty-dialog-title">Choose AI difficulty</div>
@@ -77,6 +78,17 @@ export class Hud {
             <button id="difficulty-hard-button" type="button">Hard</button>
           </div>
           <button id="difficulty-cancel-button" type="button">Cancel</button>
+        </div>
+      </div>
+      <div id="authors-dialog" class="hidden">
+        <div id="authors-dialog-box">
+          <div id="authors-dialog-title">Authors</div>
+          <ul id="authors-list">
+            <li>Yuriy Sagadatov</li>
+            <li>Alexey Lagunov</li>
+            <li>Claude Code</li>
+          </ul>
+          <button id="authors-close-button" type="button">Close</button>
         </div>
       </div>
       <div id="winner-banner" class="hidden">
@@ -90,6 +102,7 @@ export class Hud {
     this.winnerBanner = root.querySelector("#winner-banner") as HTMLElement;
     this.errorEl = root.querySelector("#error-toast") as HTMLElement;
     this.difficultyDialog = root.querySelector("#difficulty-dialog") as HTMLElement;
+    this.authorsDialog = root.querySelector("#authors-dialog") as HTMLElement;
     this.zoomSlider = root.querySelector("#zoom-slider") as HTMLInputElement;
     this.vsAiButton = root.querySelector("#vs-ai-button") as HTMLElement;
     this.newGameButton = root.querySelector("#new-game-button") as HTMLElement;
@@ -159,6 +172,9 @@ export class Hud {
     });
     root.querySelector("#difficulty-cancel-button")!.addEventListener("click", () => this.hideDifficultyDialog());
     root.querySelector("#winner-new-game")!.addEventListener("click", () => start(this.lastVsAi, this.lastDifficulty));
+
+    root.querySelector("#authors-button")!.addEventListener("click", () => this.authorsDialog.classList.remove("hidden"));
+    root.querySelector("#authors-close-button")!.addEventListener("click", () => this.authorsDialog.classList.add("hidden"));
 
     this.setZoomDistance(zoom.initial);
     this.zoomSlider.addEventListener("input", () => {
