@@ -146,19 +146,22 @@ real lobby/matchmaking system is out of scope.
 
 ## Deploy
 
-Served in production at `https://<host>:8443/duel/` behind a bundled nginx +
-Let's Encrypt (port 8443 rather than 443, since that's commonly already taken
-by something else — adjust `deploy/nginx/*.conf` and `docker-compose.yml`'s
-port mappings if not). `frontend/vite.config.ts`'s `base: '/duel/'` and
+Served in production at `https://<host>/duel/` behind a bundled nginx +
+Let's Encrypt on the standard port 443 (if that's already taken by something
+else on your host, adjust `deploy/nginx/*.conf` and `docker-compose.yml`'s
+port mappings). `frontend/vite.config.ts`'s `base: '/duel/'` and
 `scene/models.ts`'s `import.meta.env.BASE_URL`-prefixed model URLs assume
-this path; change both together if the path ever moves.
+this path; change both together if the path ever moves. `deploy/nginx/*.conf`
+list both `letatel.com` and `dicefight.online` as `server_name`s -- same app,
+two domains pointed at the same server; add/remove domains there (and in the
+certbot `-d` flags below) as needed.
 
 ```sh
 docker compose build
 # first run only: bootstrap nginx (HTTP-only, no cert yet) then obtain one
 docker compose up -d nginx backend
 docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
-  -d <your-domain> --email <your-email> --agree-tos --non-interactive
+  -d <your-domain> [-d <another-domain> ...] --email <your-email> --agree-tos --non-interactive
 docker compose restart nginx   # entrypoint.sh picks up the now-present cert
 ```
 
