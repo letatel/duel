@@ -1,6 +1,6 @@
 # Duel (Поединок) — web rewrite
 
-A dice-chess web port of the original Unity game: three.js frontend,
+A dice-chess web game: three.js frontend,
 Python (FastAPI) backend as the authoritative rules engine over WebSocket.
 
 Local hot-seat, or against a simple built-in AI (human plays white; see
