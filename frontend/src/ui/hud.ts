@@ -66,6 +66,7 @@ export class Hud {
                  </div>`
               : ""
           }
+          <div id="credits">Yuriy Sagadatov, Alexey Lagunov, Claude Code</div>
         </div>
       </div>
       <div id="difficulty-dialog" class="hidden">

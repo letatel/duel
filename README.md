@@ -174,3 +174,7 @@ twice daily (nginx doesn't need a restart for a renewed cert — `-s reload` re-
   the seat), no persistence across a server restart, and no lobby/matchmaking
   beyond "share a link" — see "Online play (rooms)" above.
 - Menus/settings/localization/chat are not built yet.
+
+## Authors
+
+Yuriy Sagadatov, Alexey Lagunov, Claude Code.
