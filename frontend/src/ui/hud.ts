@@ -23,6 +23,9 @@ export class Hud {
   private readonly vsAiButton: HTMLElement;
   private readonly newGameButton: HTMLElement;
   private readonly roomStatusEl: HTMLElement | null;
+  private readonly menuEl: HTMLElement;
+  private readonly menuToggle: HTMLButtonElement;
+  private readonly fullscreenButton: HTMLButtonElement;
   private errorTimeout: ReturnType<typeof setTimeout> | null = null;
 
   private lastVsAi = false;
@@ -40,25 +43,31 @@ export class Hud {
 
     root.innerHTML = `
       <div id="hud">
-        <div id="turn-indicator"></div>
-        <button id="new-game-button" type="button">New game</button>
-        <button id="vs-ai-button" type="button">Play vs AI</button>
-        <button id="play-online-button" type="button">Play online</button>
-        <div id="zoom-control">
-          <span aria-hidden="true">&minus;</span>
-          <input type="range" id="zoom-slider" min="${zoom.min}" max="${zoom.max}" step="0.1" aria-label="Zoom" />
-          <span aria-hidden="true">+</span>
+        <div id="hud-bar">
+          <div id="turn-indicator"></div>
+          ${room ? `<span id="room-status"></span>` : ""}
+          <button id="hud-toggle" type="button" aria-label="Menu" aria-expanded="false">&#9776;</button>
+        </div>
+        <div id="hud-menu">
+          <button id="new-game-button" type="button">New game</button>
+          <button id="vs-ai-button" type="button">Play vs AI</button>
+          <button id="play-online-button" type="button">Play online</button>
+          <div id="zoom-control">
+            <span aria-hidden="true">&minus;</span>
+            <input type="range" id="zoom-slider" min="${zoom.min}" max="${zoom.max}" step="0.1" aria-label="Zoom" />
+            <span aria-hidden="true">+</span>
+          </div>
+          <button id="fullscreen-button" type="button">Fullscreen</button>
+          ${
+            room
+              ? `<div id="room-bar">
+                   <input type="text" id="room-link" readonly value="${room.shareUrl}" />
+                   <button id="room-copy-button" type="button">Copy link</button>
+                 </div>`
+              : ""
+          }
         </div>
       </div>
-      ${
-        room
-          ? `<div id="room-bar">
-               <span id="room-status"></span>
-               <input type="text" id="room-link" readonly value="${room.shareUrl}" />
-               <button id="room-copy-button" type="button">Copy link</button>
-             </div>`
-          : ""
-      }
       <div id="difficulty-dialog" class="hidden">
         <div id="difficulty-dialog-box">
           <div id="difficulty-dialog-title">Choose AI difficulty</div>
@@ -84,11 +93,38 @@ export class Hud {
     this.vsAiButton = root.querySelector("#vs-ai-button") as HTMLElement;
     this.newGameButton = root.querySelector("#new-game-button") as HTMLElement;
     this.roomStatusEl = root.querySelector("#room-status");
+    this.menuEl = root.querySelector("#hud-menu") as HTMLElement;
+    this.menuToggle = root.querySelector("#hud-toggle") as HTMLButtonElement;
+    this.fullscreenButton = root.querySelector("#fullscreen-button") as HTMLButtonElement;
+
+    // iOS Safari has no Fullscreen API at all (a standalone-installed PWA
+    // there is already borderless, so there's nothing for the button to
+    // do); feature-detect rather than assume desktop Chrome's support.
+    if (!document.documentElement.requestFullscreen) {
+      this.fullscreenButton.classList.add("hidden");
+    } else {
+      this.fullscreenButton.addEventListener("click", () => {
+        if (document.fullscreenElement) void document.exitFullscreen();
+        else void document.documentElement.requestFullscreen().catch(() => {});
+      });
+      document.addEventListener("fullscreenchange", () => this.updateFullscreenLabel());
+      this.updateFullscreenLabel();
+    }
+
+    this.menuToggle.addEventListener("click", () => this.toggleMenu());
+    // Outside taps close the menu -- without this it stays open over the
+    // board on mobile until the user hits an action button inside it.
+    document.addEventListener("pointerdown", (e) => {
+      if (!this.menuEl.classList.contains("open")) return;
+      if (this.menuEl.contains(e.target as Node) || this.menuToggle.contains(e.target as Node)) return;
+      this.closeMenu();
+    });
 
     const start = (vsAi: boolean, difficulty: AiDifficulty): void => {
       this.lastVsAi = vsAi;
       this.lastDifficulty = difficulty;
       onNewGame(vsAi, difficulty);
+      this.closeMenu();
     };
     const playOnlineButton = root.querySelector("#play-online-button") as HTMLElement;
 
@@ -101,11 +137,17 @@ export class Hud {
         void navigator.clipboard.writeText(room.shareUrl);
       });
     } else {
-      playOnlineButton.addEventListener("click", () => onPlayOnline());
+      playOnlineButton.addEventListener("click", () => {
+        this.closeMenu();
+        onPlayOnline();
+      });
     }
 
     root.querySelector("#new-game-button")!.addEventListener("click", () => start(false, this.lastDifficulty));
-    this.vsAiButton.addEventListener("click", () => this.showDifficultyDialog());
+    this.vsAiButton.addEventListener("click", () => {
+      this.closeMenu();
+      this.showDifficultyDialog();
+    });
     root.querySelector("#difficulty-easy-button")!.addEventListener("click", () => {
       this.hideDifficultyDialog();
       start(true, "easy");
@@ -129,6 +171,28 @@ export class Hud {
 
   private hideDifficultyDialog(): void {
     this.difficultyDialog.classList.add("hidden");
+  }
+
+  /** On wide screens #hud-menu is always visible via CSS regardless of
+   * this class, so toggling it there is harmless -- it only matters once
+   * the narrow-screen media query switches the menu to a hidden dropdown. */
+  private toggleMenu(): void {
+    if (this.menuEl.classList.contains("open")) this.closeMenu();
+    else this.openMenu();
+  }
+
+  private openMenu(): void {
+    this.menuEl.classList.add("open");
+    this.menuToggle.setAttribute("aria-expanded", "true");
+  }
+
+  private closeMenu(): void {
+    this.menuEl.classList.remove("open");
+    this.menuToggle.setAttribute("aria-expanded", "false");
+  }
+
+  private updateFullscreenLabel(): void {
+    this.fullscreenButton.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
   }
 
   setTurn(turn: "white" | "black", vsAi = false): void {

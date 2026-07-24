@@ -64,18 +64,22 @@ type ClientMessage =
 
 // In dev (`npm run dev`), the backend runs locally on its own port -- 8010
 // sidesteps 8000, which was already occupied by an unrelated service on the
-// dev machine this was built on. In production, nginx proxies /duel/ws/game
-// on the same origin the page was served from (see deploy/nginx/nginx.conf),
-// so the URL is derived from window.location instead of hardcoded.
+// dev machine this was built on. It's addressed via location.hostname
+// rather than a hardcoded 127.0.0.1 so this also works when the dev server
+// is opened from another device on the LAN (e.g. testing on a phone) --
+// 127.0.0.1 from that device's own browser would mean the phone itself,
+// not the machine running the backend. In production, nginx proxies
+// /duel/ws/game on the same origin the page was served from (see
+// deploy/nginx/*.conf), so the URL is derived from window.location there too.
 const DEFAULT_URL = import.meta.env.DEV
-  ? "ws://127.0.0.1:8010/ws/game"
+  ? `ws://${window.location.hostname}:8010/ws/game`
   : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/duel/ws/game`;
 
 /** URL for a shared multiplayer room (see backend/app/api/ws.py's
  * /ws/room/{id}), reusing the same dev/prod origin logic as DEFAULT_URL. */
 export function roomSocketUrl(roomId: string): string {
   return import.meta.env.DEV
-    ? `ws://127.0.0.1:8010/ws/room/${roomId}`
+    ? `ws://${window.location.hostname}:8010/ws/room/${roomId}`
     : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/duel/ws/room/${roomId}`;
 }
 
