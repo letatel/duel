@@ -69,13 +69,6 @@ body {
   line-height: 1;
 }
 
-#authors-button {
-  position: absolute;
-  top: calc(16px + env(safe-area-inset-top));
-  right: calc(16px + env(safe-area-inset-right));
-  pointer-events: auto;
-}
-
 #zoom-control {
   display: flex;
   align-items: center;

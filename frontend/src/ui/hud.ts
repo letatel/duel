@@ -59,6 +59,7 @@ export class Hud {
             <span aria-hidden="true">+</span>
           </div>
           <button id="fullscreen-button" type="button">Fullscreen</button>
+          <button id="authors-button" type="button">Authors</button>
           ${
             room
               ? `<div id="room-bar">
@@ -69,7 +70,6 @@ export class Hud {
           }
         </div>
       </div>
-      <button id="authors-button" type="button">Authors</button>
       <div id="difficulty-dialog" class="hidden">
         <div id="difficulty-dialog-box">
           <div id="difficulty-dialog-title">Choose AI difficulty</div>
