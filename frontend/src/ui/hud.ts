@@ -19,8 +19,8 @@ export class Hud {
   private readonly difficultyDialog: HTMLElement;
   private readonly authorsDialog: HTMLElement;
   private readonly zoomSlider: HTMLInputElement;
-  private readonly zoomMin: number;
-  private readonly zoomMax: number;
+  private zoomMin: number;
+  private zoomMax: number;
   private readonly vsAiButton: HTMLElement;
   private readonly newGameButton: HTMLElement;
   private readonly roomStatusEl: HTMLElement | null;
@@ -255,6 +255,16 @@ export class Hud {
    * doesn't fire "input", so this can't cause a feedback loop. */
   setZoomDistance(distance: number): void {
     this.zoomSlider.value = String(this.distanceToSlider(distance));
+  }
+
+  /** The zoomed-out limit is aspect-ratio-dependent (see
+   * OrbitCameraController.refitToViewport) -- called after a resize or
+   * device rotation to keep the slider's range matching it. */
+  setZoomRange(min: number, max: number): void {
+    this.zoomMin = min;
+    this.zoomMax = max;
+    this.zoomSlider.min = String(min);
+    this.zoomSlider.max = String(max);
   }
 
   // The slider reads as a "zoom level" (right = more zoomed in), which is

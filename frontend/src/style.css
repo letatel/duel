@@ -242,7 +242,12 @@ button:hover {
   display: none !important;
 }
 
-@media (max-width: 640px) {
+/* Second condition catches phone landscape: width alone won't trigger
+   the narrow-portrait breakpoint above (a rotated phone is wider than
+   640px), but the shallow viewport height means the flat desktop-style
+   button row would overlap the board -- collapse it into the same
+   hamburger menu there too. */
+@media (max-width: 640px), (max-height: 500px) {
   button {
     min-height: 44px;
   }

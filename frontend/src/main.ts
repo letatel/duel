@@ -5,7 +5,7 @@ import { BoardView, tileCenter } from "./scene/board";
 import { MoveHintView } from "./scene/moveHints";
 import { buildCubeMesh, orientationQuaternion, PIECE_HALF_HEIGHT } from "./scene/cube";
 import { loadCubeModels, loadGameBoard } from "./scene/models";
-import { OrbitCameraController, ZOOM_MAX, ZOOM_MIN } from "./scene/camera";
+import { OrbitCameraController, ZOOM_MIN } from "./scene/camera";
 import { GameSocket, roomSocketUrl, type RoomRole, type ServerMessage, type StateMessage } from "./net/socket";
 import { BoardInput, resolveBend } from "./game/input";
 import { RollAnimation } from "./game/animate";
@@ -72,11 +72,23 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 viewport.appendChild(renderer.domElement);
 
-window.addEventListener("resize", () => {
+// Set once Hud exists (see start() below) so a resize/rotation can keep
+// its zoom slider's range in sync with the camera's aspect-dependent
+// zoomed-out limit -- see OrbitCameraController.refitToViewport().
+let onViewportChanged: (() => void) | null = null;
+
+function handleViewportChange(): void {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  cameraController.refitToViewport();
+  onViewportChanged?.();
+}
+window.addEventListener("resize", handleViewportChange);
+// Some mobile browsers haven't updated innerWidth/innerHeight yet at the
+// moment "orientationchange" fires -- resize almost always follows right
+// behind it, but this catches the rare case it doesn't.
+window.addEventListener("orientationchange", () => setTimeout(handleViewportChange, 100));
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const sun = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -263,12 +275,13 @@ async function start(): Promise<void> {
     () => navigateToNewRoom(),
     {
       min: ZOOM_MIN,
-      max: ZOOM_MAX,
+      max: cameraController.getMaxDistance(),
       initial: cameraController.getDistance(),
       onChange: (distance) => cameraController.setDistance(distance),
     },
     roomId ? { shareUrl: window.location.href } : undefined,
   );
+  onViewportChanged = () => hud.setZoomRange(ZOOM_MIN, cameraController.getMaxDistance());
 
   // ── Render loop ──────────────────────────────────────────────────────
   const clock = new THREE.Clock();
