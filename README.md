@@ -177,4 +177,7 @@ twice daily (nginx doesn't need a restart for a renewed cert — `-s reload` re-
 
 ## Authors
 
-Yuriy Sagadatov, Alexey Lagunov, Claude Code.
+Yuriy Sagadatov
+Development:
+Alexey Lagunov,
+Claude Code.
