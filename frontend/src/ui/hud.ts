@@ -21,24 +21,29 @@ export class Hud {
   private readonly zoomSlider: HTMLInputElement;
   private zoomMin: number;
   private zoomMax: number;
-  private readonly vsAiButton: HTMLElement;
-  private readonly newGameButton: HTMLElement;
+  /** Room-only, hence nullable -- outside a room the title menu covers this. */
+  private readonly newGameButton: HTMLElement | null;
   private readonly roomStatusEl: HTMLElement | null;
   private readonly menuEl: HTMLElement;
   private readonly menuToggle: HTMLButtonElement;
   private readonly fullscreenButton: HTMLButtonElement;
+  private readonly onNewGame: (vsAi: boolean, difficulty: AiDifficulty) => void;
   private errorTimeout: ReturnType<typeof setTimeout> | null = null;
 
   private lastVsAi = false;
   private lastDifficulty: AiDifficulty = "easy";
 
+  /** `onOpenMenu` reopens the title screen (see ui/splash.ts), which is where
+   * mode selection and Authors live -- this HUD only carries what's useful
+   * mid-game. */
   constructor(
     root: HTMLElement,
     onNewGame: (vsAi: boolean, difficulty: AiDifficulty) => void,
-    onPlayOnline: () => void,
+    onOpenMenu: () => void,
     zoom: ZoomConfig,
     room?: RoomConfig,
   ) {
+    this.onNewGame = onNewGame;
     this.zoomMin = zoom.min;
     this.zoomMax = zoom.max;
 
@@ -50,16 +55,18 @@ export class Hud {
           <button id="hud-toggle" type="button" aria-label="Menu" aria-expanded="false">&#9776;</button>
         </div>
         <div id="hud-menu">
-          <button id="new-game-button" type="button">New game</button>
-          <button id="vs-ai-button" type="button">Play vs AI</button>
-          <button id="play-online-button" type="button">Play online</button>
+          <button id="main-menu-button" type="button">Main menu</button>
+          ${
+            /* Room-only: resets the shared game for both seats. Outside a
+               room the title menu's mode buttons start games instead. */
+            room ? `<button id="new-game-button" type="button">New game</button>` : ""
+          }
           <div id="zoom-control">
             <span aria-hidden="true">&minus;</span>
             <input type="range" id="zoom-slider" min="${zoom.min}" max="${zoom.max}" step="0.1" aria-label="Zoom" />
             <span aria-hidden="true">+</span>
           </div>
           <button id="fullscreen-button" type="button">Fullscreen</button>
-          <button id="authors-button" type="button">Authors</button>
           ${
             room
               ? `<div id="room-bar">
@@ -104,8 +111,7 @@ export class Hud {
     this.difficultyDialog = root.querySelector("#difficulty-dialog") as HTMLElement;
     this.authorsDialog = root.querySelector("#authors-dialog") as HTMLElement;
     this.zoomSlider = root.querySelector("#zoom-slider") as HTMLInputElement;
-    this.vsAiButton = root.querySelector("#vs-ai-button") as HTMLElement;
-    this.newGameButton = root.querySelector("#new-game-button") as HTMLElement;
+    this.newGameButton = root.querySelector("#new-game-button");
     this.roomStatusEl = root.querySelector("#room-status");
     this.menuEl = root.querySelector("#hud-menu") as HTMLElement;
     this.menuToggle = root.querySelector("#hud-toggle") as HTMLButtonElement;
@@ -134,46 +140,29 @@ export class Hud {
       this.closeMenu();
     });
 
-    const start = (vsAi: boolean, difficulty: AiDifficulty): void => {
-      this.lastVsAi = vsAi;
-      this.lastDifficulty = difficulty;
-      onNewGame(vsAi, difficulty);
+    root.querySelector("#main-menu-button")!.addEventListener("click", () => {
       this.closeMenu();
-    };
-    const playOnlineButton = root.querySelector("#play-online-button") as HTMLElement;
+      onOpenMenu();
+    });
 
     if (room) {
-      // A room is always exactly two humans -- "vs AI" and "start another
-      // online room from inside this one" don't apply.
-      this.vsAiButton.classList.add("hidden");
-      playOnlineButton.classList.add("hidden");
       root.querySelector("#room-copy-button")!.addEventListener("click", () => {
         void navigator.clipboard.writeText(room.shareUrl);
       });
-    } else {
-      playOnlineButton.addEventListener("click", () => {
-        this.closeMenu();
-        onPlayOnline();
-      });
     }
 
-    root.querySelector("#new-game-button")!.addEventListener("click", () => start(false, this.lastDifficulty));
-    this.vsAiButton.addEventListener("click", () => {
-      this.closeMenu();
-      this.showDifficultyDialog();
-    });
+    this.newGameButton?.addEventListener("click", () => this.startNewGame(false));
     root.querySelector("#difficulty-easy-button")!.addEventListener("click", () => {
       this.hideDifficultyDialog();
-      start(true, "easy");
+      this.startNewGame(true, "easy");
     });
     root.querySelector("#difficulty-hard-button")!.addEventListener("click", () => {
       this.hideDifficultyDialog();
-      start(true, "hard");
+      this.startNewGame(true, "hard");
     });
     root.querySelector("#difficulty-cancel-button")!.addEventListener("click", () => this.hideDifficultyDialog());
-    root.querySelector("#winner-new-game")!.addEventListener("click", () => start(this.lastVsAi, this.lastDifficulty));
+    root.querySelector("#winner-new-game")!.addEventListener("click", () => this.startNewGame(this.lastVsAi));
 
-    root.querySelector("#authors-button")!.addEventListener("click", () => this.authorsDialog.classList.remove("hidden"));
     root.querySelector("#authors-close-button")!.addEventListener("click", () => this.authorsDialog.classList.add("hidden"));
 
     this.setZoomDistance(zoom.initial);
@@ -182,8 +171,25 @@ export class Hud {
     });
   }
 
-  private showDifficultyDialog(): void {
+  /** Starting a game stays here rather than moving to the title menu with the
+   * buttons: `lastVsAi`/`lastDifficulty` are what the winner banner's "Play
+   * again" replays, so this class has to see every start regardless of which
+   * button triggered it. */
+  startNewGame(vsAi: boolean, difficulty: AiDifficulty = this.lastDifficulty): void {
+    this.lastVsAi = vsAi;
+    this.lastDifficulty = difficulty;
+    this.onNewGame(vsAi, difficulty);
+    this.closeMenu();
+  }
+
+  /** Both dialogs keep living in this class's DOM, but are now opened from
+   * the title menu (see ui/splash.ts) -- hence public. */
+  showDifficultyDialog(): void {
     this.difficultyDialog.classList.remove("hidden");
+  }
+
+  showAuthors(): void {
+    this.authorsDialog.classList.remove("hidden");
   }
 
   private hideDifficultyDialog(): void {
@@ -225,7 +231,7 @@ export class Hud {
     if (!this.roomStatusEl) return;
     if (role === "spectator") {
       this.roomStatusEl.textContent = "You are spectating";
-      this.newGameButton.classList.add("hidden");
+      this.newGameButton?.classList.add("hidden");
       return;
     }
     const side = role === "white" ? "White" : "Black";

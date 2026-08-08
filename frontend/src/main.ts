@@ -11,11 +11,25 @@ import { BoardInput, resolveBend } from "./game/input";
 import { RollAnimation } from "./game/animate";
 import { pathSteps } from "./game/path";
 import { Hud } from "./ui/hud";
+import { Splash } from "./ui/splash";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app")!;
-appRoot.innerHTML = `<div id="viewport"></div><div id="hud-root"></div>`;
+appRoot.innerHTML = `<div id="viewport"></div><div id="hud-root"></div><div id="splash-root"></div>`;
 const viewport = appRoot.querySelector<HTMLDivElement>("#viewport")!;
 const hudRoot = appRoot.querySelector<HTMLDivElement>("#hud-root")!;
+const splashRoot = appRoot.querySelector<HTMLDivElement>("#splash-root")!;
+
+// A room ID in the URL means "join this shared multiplayer game" instead
+// of the default local hot-seat/vs-AI session -- see backend/app/api/ws.py's
+// /ws/room/{id}. Generating a short random one client-side and navigating
+// there (see navigateToNewRoom below) is enough to create a room; the server
+// makes it real on first connection.
+const roomId = new URLSearchParams(window.location.search).get("room");
+
+// The title screen doubles as the game's main menu: it covers the empty
+// scene while models load, then offers the mode buttons (see its showMenu()
+// call at the end of start(), once the Hud its handlers drive exists).
+const splash = new Splash(splashRoot, roomId !== null);
 
 // A silently-failed model/board load leaves nothing but the background
 // color on screen, with no way to see *why* on a phone that isn't hooked
@@ -35,13 +49,6 @@ function showFatalError(message: string): void {
 }
 window.addEventListener("error", (e) => showFatalError(`error: ${e.message}`));
 window.addEventListener("unhandledrejection", (e) => showFatalError(`unhandled rejection: ${String(e.reason)}`));
-
-// A room ID in the URL means "join this shared multiplayer game" instead
-// of the default local hot-seat/vs-AI session -- see backend/app/api/ws.py's
-// /ws/room/{id}. Generating a short random one client-side and navigating
-// there (see the "Play online" button below) is enough to create a room;
-// the server makes it real on first connection.
-const roomId = new URLSearchParams(window.location.search).get("room");
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -271,8 +278,12 @@ async function start(): Promise<void> {
       awaitingFullRebuild = true;
       if (!roomId) cameraController.setWhiteTurn(); // a fresh hot-seat/vs-AI game always starts on white
       socket.newGame(vsAi, difficulty);
+      // The single "a game is starting" funnel -- every entry point (a title
+      // menu button, the difficulty dialog, the winner banner's "Play again")
+      // ends up here, so the menu only has to be dismissed in one place.
+      splash.hide();
     },
-    () => navigateToNewRoom(),
+    () => splash.show(),
     {
       min: ZOOM_MIN,
       max: cameraController.getMaxDistance(),
@@ -282,6 +293,15 @@ async function start(): Promise<void> {
     roomId ? { shareUrl: window.location.href } : undefined,
   );
   onViewportChanged = () => hud.setZoomRange(ZOOM_MIN, cameraController.getMaxDistance());
+
+  // Models are loaded and the Hud exists, so the menu's buttons have
+  // something to act on -- swap "Loading…" for them.
+  splash.showMenu({
+    onTwoPlayers: () => hud.startNewGame(false),
+    onVsAi: () => hud.showDifficultyDialog(),
+    onPlayOnline: () => navigateToNewRoom(),
+    onAuthors: () => hud.showAuthors(),
+  });
 
   // ── Render loop ──────────────────────────────────────────────────────
   const clock = new THREE.Clock();
@@ -303,4 +323,10 @@ async function start(): Promise<void> {
   tick();
 }
 
-start();
+start().catch((err: unknown) => {
+  // The menu is what gets the player into the game, and it never arrives if
+  // this throws -- so say so on the title screen itself. The red bar says
+  // *what* broke; without this the screen would just sit on "Loading…".
+  splash.showLoadError("Failed to load. Please reload the page.");
+  showFatalError(`startup failed: ${String(err)}`);
+});

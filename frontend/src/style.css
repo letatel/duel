@@ -144,6 +144,10 @@ button:hover {
 #difficulty-dialog {
   position: absolute;
   inset: 0;
+  /* Above #splash (1000): both dialogs are opened from the title menu, which
+     covers the whole screen. #hud-root, their parent, is positioned but has
+     no z-index of its own, so it doesn't trap them in a stacking context. */
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -175,6 +179,7 @@ button:hover {
 #authors-dialog {
   position: absolute;
   inset: 0;
+  z-index: 1100; /* same reasoning as #difficulty-dialog above */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -240,6 +245,95 @@ button:hover {
 
 .hidden {
   display: none !important;
+}
+
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px;
+  box-sizing: border-box;
+  /* Last resort if the banner and the menu still don't fit -- the buttons
+     have to stay reachable. */
+  overflow-y: auto;
+  background: #1b1f24;
+  transition: opacity 0.4s ease;
+}
+
+/* Not `display: none` -- the fade needs the element rendered. Splash.hide()
+   adds visibility:hidden once the transition ends. */
+#splash.dismissed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#splash-banner {
+  max-width: min(560px, 88vw);
+  /* min-height + a shrinkable height let the banner give up space before the
+     menu does, since the two together have to fit a phone in landscape. */
+  max-height: 44vh;
+  min-height: 0;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* Only on screen while the models load; Splash.showMenu() hides it. */
+#splash-status {
+  color: #f2ede2;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+  animation: splash-pulse 1.6s ease-in-out infinite;
+}
+
+#splash-status.error {
+  color: #ff9d9d;
+  opacity: 1;
+  animation: none;
+}
+
+#splash-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: min(280px, 80vw);
+  flex: none;
+}
+
+#splash-menu button {
+  min-height: 48px;
+  font-size: 17px;
+}
+
+/* The default action: "Two players" locally, "Continue" in a room. */
+#splash-menu button.splash-primary {
+  border-color: rgba(111, 208, 122, 0.6);
+  background: rgba(111, 208, 122, 0.16);
+  font-weight: 600;
+}
+
+#splash-menu button.splash-primary:hover {
+  background: rgba(111, 208, 122, 0.26);
+}
+
+@keyframes splash-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Second condition catches phone landscape: width alone won't trigger
@@ -327,5 +421,23 @@ button:hover {
     width: min(320px, 88vw);
     padding: 24px 28px;
     font-size: 22px;
+  }
+}
+
+/* Shallow viewport (a phone in landscape) only -- narrow portrait screens
+   have plenty of height, so this is separate from the breakpoint above
+   rather than folded into it. The banner gives up most of its height so the
+   four menu buttons fit without scrolling. */
+@media (max-height: 500px) {
+  #splash {
+    gap: 14px;
+  }
+
+  #splash-banner {
+    max-height: 30vh;
+  }
+
+  #splash-menu button {
+    min-height: 44px;
   }
 }
