@@ -1,0 +1,15 @@
+# Local-only override: picked up automatically by `docker compose up` (no
+# -f flags needed) alongside docker-compose.yml. Swaps in a no-TLS nginx
+# config and a host-reachable port, so the full backend+built-frontend
+# stack can be tried on http://localhost:8080/duel/ without a real
+# domain or Let's Encrypt certificate. Not meant for the production
+# deploy -- see docker-compose.yml/deploy/nginx/*.conf for that.
+services:
+  nginx:
+    ports:
+      - "8080:80"
+    volumes:
+      - ./deploy/nginx/local.conf:/etc/nginx/conf.d/default.conf:ro,z
+    # Skip entrypoint.sh's cert-presence check (no cert exists locally) --
+    # the mounted local.conf above is already the final config to use.
+    entrypoint: ["nginx", "-g", "daemon off;"]
