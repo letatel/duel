@@ -50,7 +50,17 @@ function showFatalError(message: string): void {
 window.addEventListener("error", (e) => showFatalError(`error: ${e.message}`));
 window.addEventListener("unhandledrejection", (e) => showFatalError(`unhandled rejection: ${String(e.reason)}`));
 
-if ("serviceWorker" in navigator) {
+// The itch.io build (see frontend/.env.itch), where the game runs in an
+// iframe on itch's own domain rather than being served by us. Vite inlines
+// this as a literal, so each `IS_ITCH` branch below is resolved -- and the
+// unused side dropped -- at build time.
+const IS_ITCH = import.meta.env.VITE_ITCH === "true";
+
+// Skipped on itch.io: the build sits at a per-upload-random path there
+// (/html/<id>/), so a cached app shell is thrown away by the next upload
+// anyway, and all a registration buys is a way for a stale build to linger on
+// a domain shared with every other game on the site.
+if (!IS_ITCH && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
   });
@@ -299,7 +309,11 @@ async function start(): Promise<void> {
   splash.showMenu({
     onTwoPlayers: () => hud.startNewGame(false),
     onVsAi: () => hud.showDifficultyDialog(),
-    onPlayOnline: () => navigateToNewRoom(),
+    // Not offered on itch.io: navigateToNewRoom() would rewrite the *iframe's*
+    // URL, so the link the player is then asked to share is an internal
+    // html-classic.itch.zone address that stops resolving the next time the
+    // build is uploaded. Joining a room by direct ?room= link still works.
+    onPlayOnline: IS_ITCH ? undefined : () => navigateToNewRoom(),
     onAuthors: () => hud.showAuthors(),
   });
 

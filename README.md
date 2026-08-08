@@ -168,6 +168,50 @@ docker compose restart nginx   # entrypoint.sh picks up the now-present cert
 Renewal: cron `docker compose run --rm certbot renew --quiet && docker compose exec nginx nginx -s reload`,
 twice daily (nginx doesn't need a restart for a renewed cert — `-s reload` re-reads it from disk).
 
+## itch.io build
+
+A second, static-only variant of the frontend, uploaded to itch.io as a zip
+while the backend keeps running on our own server:
+
+```sh
+cd frontend
+npm run package:itch     # -> frontend/duel-itch.zip
+```
+
+Upload that zip as the project's file and tick **"This file will be played in
+the browser"**. Set the embed size to something wide (the board auto-fits its
+viewport aspect, so any reasonable 16:9 works) and enable itch's fullscreen
+button.
+
+It's the same codebase — the differences are `--mode itch` plus
+`frontend/.env.itch`, not a fork:
+
+- **Relative `base`.** itch serves an HTML game from
+  `https://html-classic.itch.zone/html/<id>/` inside an iframe, and `<id>`
+  changes on every re-upload, so the `/duel/` prefix the normal build bakes in
+  can't be used. `vite.config.ts` switches to `base: './'`.
+- **Absolute WebSocket URL.** There's no nginx of ours in front of that
+  iframe to proxy `/duel/ws/`, so `VITE_WS_BASE` in `frontend/.env.itch` names
+  the deployed backend outright (`wss://dicefight.online/duel` by default —
+  change it there if the host moves). Nothing is needed on the backend side:
+  `allow_origins=["*"]` is already set, and WebSocket connections aren't
+  subject to CORS anyway.
+- **No service worker**, since a per-upload-random path makes a cached app
+  shell useless, and **no Yandex.Metrika counter** — itch's own dashboard
+  covers that build's stats.
+- **No "Play online" button.** Creating a room rewrites the iframe's own URL,
+  so the link the player would be handed to share is an internal itch.zone
+  address that breaks on the next upload. Joining a room by direct `?room=`
+  link still works; play locally or vs. the AI is unaffected.
+
+To try it the way itch will serve it — from a subdirectory, not a domain root:
+
+```sh
+npm run build:itch
+mkdir -p /tmp/itch-test && cp -r dist /tmp/itch-test/sub
+(cd /tmp/itch-test && python3 -m http.server)   # http://localhost:8000/sub/
+```
+
 ## Known gaps / follow-ups
 
 - Rooms have no reconnect-to-the-same-seat (a dropped connection just frees

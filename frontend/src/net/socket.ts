@@ -62,25 +62,36 @@ type ClientMessage =
   | { type: "select"; x: number; y: number }
   | { type: "move"; fromX: number; fromY: number; toX: number; toY: number; bend?: "x" | "y" };
 
-// In dev (`npm run dev`), the backend runs locally on its own port -- 8010
-// sidesteps 8000, which was already occupied by an unrelated service on the
-// dev machine this was built on. It's addressed via location.hostname
-// rather than a hardcoded 127.0.0.1 so this also works when the dev server
-// is opened from another device on the LAN (e.g. testing on a phone) --
-// 127.0.0.1 from that device's own browser would mean the phone itself,
-// not the machine running the backend. In production, nginx proxies
-// /duel/ws/game on the same origin the page was served from (see
-// deploy/nginx/*.conf), so the URL is derived from window.location there too.
-const DEFAULT_URL = import.meta.env.DEV
-  ? `ws://${window.location.hostname}:8010/ws/game`
-  : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/duel/ws/game`;
+// Set only by the itch.io build (see frontend/.env.itch). That variant is
+// served as static files from someone else's domain, so there is no
+// same-origin backend to derive an address from and none of the reasoning
+// below applies -- the deployed backend is named outright instead.
+const WS_BASE = import.meta.env.VITE_WS_BASE;
+
+/** Absolute WebSocket URL for a backend path (`/ws/game`, `/ws/room/<id>`).
+ *
+ * In dev (`npm run dev`), the backend runs locally on its own port -- 8010
+ * sidesteps 8000, which was already occupied by an unrelated service on the
+ * dev machine this was built on -- and serves those paths at its root. It's
+ * addressed via location.hostname rather than a hardcoded 127.0.0.1 so this
+ * also works when the dev server is opened from another device on the LAN
+ * (e.g. testing on a phone) -- 127.0.0.1 from that device's own browser would
+ * mean the phone itself, not the machine running the backend. In production,
+ * nginx proxies them under /duel/ on the same origin the page was served from
+ * (see deploy/nginx/*.conf), so the URL is derived from window.location. */
+function socketUrl(path: string): string {
+  if (WS_BASE) return `${WS_BASE}${path}`;
+  if (import.meta.env.DEV) return `ws://${window.location.hostname}:8010${path}`;
+  const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${scheme}//${window.location.host}/duel${path}`;
+}
+
+const DEFAULT_URL = socketUrl("/ws/game");
 
 /** URL for a shared multiplayer room (see backend/app/api/ws.py's
- * /ws/room/{id}), reusing the same dev/prod origin logic as DEFAULT_URL. */
+ * /ws/room/{id}). */
 export function roomSocketUrl(roomId: string): string {
-  return import.meta.env.DEV
-    ? `ws://${window.location.hostname}:8010/ws/room/${roomId}`
-    : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/duel/ws/room/${roomId}`;
+  return socketUrl(`/ws/room/${roomId}`);
 }
 
 export class GameSocket {

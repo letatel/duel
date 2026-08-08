@@ -7,7 +7,9 @@ export interface SplashHandlers {
   /** Local hot-seat game: two humans sharing one screen. */
   onTwoPlayers: () => void;
   onVsAi: () => void;
-  onPlayOnline: () => void;
+  /** Omitted where creating a room is pointless -- see showMenu(), which then
+   * hides the button rather than offering a dead one. */
+  onPlayOnline?: () => void;
   onAuthors: () => void;
 }
 
@@ -79,7 +81,9 @@ export class Splash {
     // Optional chaining, not `!`: the mode buttons don't exist in room mode.
     this.menuEl.querySelector("#splash-two-players")?.addEventListener("click", handlers.onTwoPlayers);
     this.menuEl.querySelector("#splash-vs-ai")?.addEventListener("click", handlers.onVsAi);
-    this.menuEl.querySelector("#splash-online")?.addEventListener("click", handlers.onPlayOnline);
+    const onlineButton = this.menuEl.querySelector("#splash-online");
+    if (handlers.onPlayOnline) onlineButton?.addEventListener("click", handlers.onPlayOnline);
+    else onlineButton?.classList.add("hidden");
     this.menuEl.querySelector("#splash-authors")!.addEventListener("click", handlers.onAuthors);
   }
 

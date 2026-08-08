@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:itch": "tsc && vite build --mode itch",
+    "package:itch": "npm run build:itch && cd dist && zip -qr ../duel-itch.zip .",
     "preview": "vite preview"
   },
   "devDependencies": {

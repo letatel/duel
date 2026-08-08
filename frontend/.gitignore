@@ -13,6 +13,9 @@ dist-ssr
 dist-lan
 *.local
 
+# Built by `npm run package:itch`, for uploading to itch.io
+duel-itch.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -98,15 +98,31 @@ itself just requested. See `main.ts`'s `handleServerMessage`.
   bend direction a click maps to), `animate.ts` (roll animation), `path.ts`
   (expands a bend choice into concrete roll steps, mirroring
   `Board.path_steps` on the backend).
-- `net/socket.ts` — thin WebSocket client; `DEFAULT_URL`/`roomSocketUrl`
-  derive dev vs. prod URLs from `import.meta.env.DEV` and
-  `window.location`, since prod is served behind nginx on the same origin
-  under `/duel/`.
+- `net/socket.ts` — thin WebSocket client; `socketUrl` derives dev vs. prod
+  URLs from `import.meta.env.DEV` and `window.location`, since prod is served
+  behind nginx on the same origin under `/duel/`. `VITE_WS_BASE`, set only by
+  the itch.io build, overrides that with an absolute backend URL.
 - `ui/hud.ts` — turn indicator, win banner, zoom slider, room share UI.
+- `ui/splash.ts` — the title screen, which doubles as the main menu (mode
+  selection + Authors); reopened mid-game by the HUD's "Main menu" button.
 
 `vite.config.ts`'s `base: '/duel/'` (build-only) and `models.ts`'s
 `import.meta.env.BASE_URL`-prefixed model URLs assume the production
 deploy path `/duel/`; change both together if that path ever moves.
+
+### The itch.io build
+
+`npm run build:itch` / `npm run package:itch` (`vite build --mode itch` +
+`frontend/.env.itch`) produce a static zip for itch.io, where the game runs in
+an iframe at `html-classic.itch.zone/html/<id>/` — a foreign origin whose path
+changes on every upload. It's a build mode, not a fork, and everything it
+changes is deliberately confined to four spots: `base: './'` in
+`vite.config.ts` (plus an inline `transformIndexHtml` plugin there stripping
+the Metrika counter and the PWA manifest), `VITE_WS_BASE` in `socket.ts`, and
+two `IS_ITCH` branches in `main.ts` (no service worker, no "Play online"
+button — that flow would hand the player an itch.zone-internal share link).
+Keep new divergence funnelled through those rather than spreading `VITE_ITCH`
+checks around. See README.md's "itch.io build" section.
 
 ### 3D models
 
