@@ -1,7 +1,17 @@
 #!/bin/sh
 set -e
 
-CERT_PATH="/etc/letsencrypt/live/letatel.com/fullchain.pem"
+# NGINX_SERVER_NAMES/NGINX_CERT_NAME come from docker-compose.yml's nginx
+# service environment (defaults there reproduce this repo's original
+# single-host, two-domain deploy).
+envsubst '${NGINX_SERVER_NAMES} ${NGINX_CERT_NAME}' \
+    < /etc/nginx/conf.d.available/bootstrap.conf.template \
+    > /etc/nginx/conf.d.available/bootstrap.conf
+envsubst '${NGINX_SERVER_NAMES} ${NGINX_CERT_NAME}' \
+    < /etc/nginx/conf.d.available/full.conf.template \
+    > /etc/nginx/conf.d.available/full.conf
+
+CERT_PATH="/etc/letsencrypt/live/${NGINX_CERT_NAME}/fullchain.pem"
 
 if [ -f "$CERT_PATH" ]; then
     echo "[entrypoint] certificate found, using full config (80 redirect + 8443 TLS)"

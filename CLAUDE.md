@@ -119,8 +119,13 @@ this repo.
 
 `docker-compose.yml` + `deploy/nginx/` run nginx (TLS via Let's Encrypt) in
 front of the backend, serving the built frontend at `/duel/` on port 443.
-See README.md's "Deploy" section for the first-run cert-bootstrap sequence
-and renewal cron if you need to touch deploy config.
+`deploy/nginx/*.conf.template` are envsubst templates, not static configs —
+`NGINX_SERVER_NAMES`/`NGINX_CERT_NAME` (defaulted in `docker-compose.yml` to
+this repo's original single-host setup, `letatel.com dicefight.online`) let a
+second, independent host serve a different domain via its own gitignored
+`.env` without touching the first host's behavior. See README.md's "Deploy"
+section for the first-run cert-bootstrap sequence and renewal cron if you
+need to touch deploy config.
 
 ## Known gaps
 

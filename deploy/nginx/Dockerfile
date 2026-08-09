@@ -11,8 +11,8 @@ FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html/duel
 
 RUN rm -f /etc/nginx/conf.d/default.conf
-COPY deploy/nginx/bootstrap.conf /etc/nginx/conf.d.available/bootstrap.conf
-COPY deploy/nginx/full.conf /etc/nginx/conf.d.available/full.conf
+COPY deploy/nginx/bootstrap.conf.template /etc/nginx/conf.d.available/bootstrap.conf.template
+COPY deploy/nginx/full.conf.template /etc/nginx/conf.d.available/full.conf.template
 COPY deploy/nginx/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

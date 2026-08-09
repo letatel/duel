@@ -2,9 +2,12 @@
 # the ACME HTTP-01 challenge on port 80 so certbot can validate the domain.
 # No TLS block here: nginx would refuse to start referencing a certificate
 # file that doesn't exist yet.
+#
+# ${NGINX_SERVER_NAMES} is substituted by entrypoint.sh via envsubst --
+# see docker-compose.yml's nginx service environment.
 server {
     listen 80;
-    server_name letatel.com dicefight.online;
+    server_name ${NGINX_SERVER_NAMES};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;

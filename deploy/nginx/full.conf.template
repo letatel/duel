@@ -1,9 +1,14 @@
 # Swapped in by entrypoint.sh once a certificate exists. Port 80 only
 # redirects to 443 (and keeps serving ACME challenges for certificate
 # renewal/expansion).
+#
+# ${NGINX_SERVER_NAMES}/${NGINX_CERT_NAME} are substituted by entrypoint.sh
+# via envsubst -- see docker-compose.yml's nginx service environment. The
+# cert name is the primary `-d` domain passed to certbot, since that's what
+# certbot names the certificate lineage after.
 server {
     listen 80;
-    server_name letatel.com dicefight.online;
+    server_name ${NGINX_SERVER_NAMES};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -16,10 +21,10 @@ server {
 
 server {
     listen 443 ssl;
-    server_name letatel.com dicefight.online;
+    server_name ${NGINX_SERVER_NAMES};
 
-    ssl_certificate /etc/letsencrypt/live/letatel.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/letatel.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${NGINX_CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${NGINX_CERT_NAME}/privkey.pem;
 
     location = / {
         return 301 /duel/;

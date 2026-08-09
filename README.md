@@ -148,13 +148,23 @@ real lobby/matchmaking system is out of scope.
 
 Served in production at `https://<host>/duel/` behind a bundled nginx +
 Let's Encrypt on the standard port 443 (if that's already taken by something
-else on your host, adjust `deploy/nginx/*.conf` and `docker-compose.yml`'s
-port mappings). `frontend/vite.config.ts`'s `base: '/duel/'` and
-`scene/models.ts`'s `import.meta.env.BASE_URL`-prefixed model URLs assume
-this path; change both together if the path ever moves. `deploy/nginx/*.conf`
-list both `letatel.com` and `dicefight.online` as `server_name`s -- same app,
-two domains pointed at the same server; add/remove domains there (and in the
-certbot `-d` flags below) as needed.
+else on your host, adjust `deploy/nginx/*.conf.template` and
+`docker-compose.yml`'s port mappings). `frontend/vite.config.ts`'s
+`base: '/duel/'` and `scene/models.ts`'s `import.meta.env.BASE_URL`-prefixed
+model URLs assume this path; change both together if the path ever moves.
+`deploy/nginx/*.conf.template` default to listing both `letatel.com` and
+`dicefight.online` as `server_name`s — same app, two domains pointed at the
+same server. A second host serving a different domain (e.g. only
+`dicefight.online`, moved off the first host to dodge IP-level throttling)
+overrides this via a repo-root `.env` (gitignored, see `.env.example`):
+
+```
+NGINX_SERVER_NAMES=dicefight.online
+NGINX_CERT_NAME=dicefight.online
+```
+
+`NGINX_CERT_NAME` is whichever domain you pass first to certbot's `-d` below
+— that's what certbot names the certificate lineage after.
 
 ```sh
 docker compose build
